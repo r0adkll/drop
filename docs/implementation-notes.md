@@ -28,8 +28,11 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - Verify against issuer `https://token.actions.githubusercontent.com` and its key set at
   `https://token.actions.githubusercontent.com/.well-known/jwks`.
 - Claims Drop uses: `aud`, `repository`, `repository_id`, `repository_owner_id`,
-  `repository_visibility`, `event_name`, `ref`, `run_id`. Match accounts and repositories by the
-  numeric IDs.
+  `repository_visibility`, `event_name`, `ref`, `sha`, `run_id`, `run_attempt`, `run_number`,
+  `workflow`. Match accounts and repositories by the numeric IDs.
+- On `pull_request` runs `sha` (like `GITHUB_SHA`) is the temporary merge commit, not the commit the
+  author pushed. The Action sends `pull_request.head.sha` from the event payload for display, along
+  with the pull request title and the head commit message; the token carries none of these.
 - Pull requests from forks never receive `id-token: write`. `pull_request_target` and
   `workflow_run` do, while handling fork content, which is why Drop rejects them by default.
 

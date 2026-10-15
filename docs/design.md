@@ -87,11 +87,28 @@ these rules.
 
 ## Build pages
 
-- The Build page is the only web page in milestone 1: icon, name, version, Channel, links to the
-  commit, pull request and CI run, a QR code and an install button. There are no Channel, Product
-  or index pages.
+- The Build page is the only web page in milestone 1. There are no Channel, Product or index pages.
+- It leads with what the Build contains: the pull request title (or the commit message outside pull
+  requests) as the headline, the head commit and its message beneath, then the app's icon, name,
+  version and Channel. The Action takes the commit message from the event payload, or from
+  `git log -1` in the checkout when the event has none (`schedule`, `workflow_dispatch`); with
+  neither, the app name leads.
+- On a laptop the details sit beside a QR panel with install steps, a Download APK link and Copy
+  link. On a phone the QR code is dropped, Install stays pinned to the bottom of the screen, and help
+  for Android's unknown-apps prompt and "App not installed" sits with the details.
+- Details: pull request, commit, CI run labelled with its workflow and run number
+  ("Android #1876"), upload time, size, and how long it is kept ("while it is the newest on
+  `pr/142`", or a date). A collapsed *Technical details* holds the application ID, version code,
+  Signer and APK SHA-256 digests and run ID.
+- The newest Build of its Channel is marked as such. An older one shows a banner linking to the
+  newest.
 - A deleted Build keeps its record, without the file. Its Build page says it has expired and links
   to the newest Build of its Channel, or of the default Channel once that Channel has ended.
+- Build page URLs are `/b/<id>`, with an 8-character random base62 ID, so they can't be enumerated
+  and their QR codes stay sparse.
+- The page uses system fonts and inline CSS, follows the device's light or dark theme, makes no
+  third-party requests, and carries Open Graph tags (title, description, app icon) for link
+  previews. The Worker draws the QR code.
 
 ## SDK
 
@@ -123,9 +140,11 @@ these rules.
 
 ## Pull request comments
 
-The GitHub App keeps one comment per pull request and edits it in place: a row per Product with its
-newest Build's version, commit, QR code and Build page link. When the pull request closes, the
-comment notes that its Builds are deleted in 24 hours.
+The GitHub App keeps one comment per pull request and edits it in place: a block per Product with
+its newest Build's 128px QR code beside its icon, name, version, Channel, head commit, CI run and
+Build page link. When the pull request closes, the comment notes when its Builds will be deleted
+and that Testers will be offered the default Channel's newest Build. Once they are deleted, the
+retention job edits the comment down to that note.
 
 ## Notifications
 

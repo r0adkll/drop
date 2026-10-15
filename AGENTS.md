@@ -23,6 +23,10 @@ themselves. Scope is in [`README.md`](README.md); milestone 1 serves Public prod
 - **Design before UI.** Every user-facing surface (Build page and its expired state, pull request
   comment, Update sheet, Slack and Discord messages) starts with a design iteration: mockups or
   options agreed with the maintainer before any implementation. Non-UI work starts directly.
+- **Ask in rounds.** Every question or decision for the maintainer, design-review options included,
+  goes out as one round through Clinic's `ask_round` tool, each question carrying your
+  recommendation. In the conversation, write only each question's title and recommendation. Where
+  Clinic isn't available, ask in the conversation in the same shape.
 - **Open source.** The repository is public and anyone deploys their own copy. Everything specific
   to a deployment comes from `drop.config.json` or Worker secrets; examples use placeholders such as
   `drop.example.com`, `your-org` and `you/app`.
