@@ -1,0 +1,4 @@
+V2 Signer: certificate DN: CN=a
+V2 Signer: certificate SHA-256 digest: 174c51c931d010ec1aec6ff7da82483cba386a3b0f0dd4a5be9cc01f552f30ef
+V2 Signer: certificate SHA-1 digest: 6bac27881260ef62f3900f4553450a304033ee8c
+V2 Signer: certificate MD5 digest: 74f30fa0a2b05eb74add53f167ed2af2

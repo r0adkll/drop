@@ -138,7 +138,12 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - `aapt2 dump badging <apk>` gives the package name, `versionCode`, `versionName`,
   `application-label` and `application-icon-<density>` paths; `apksigner verify --print-certs`
   gives the signer's SHA-256 digest. Both live in `$ANDROID_HOME/build-tools/<version>/` on
-  GitHub's Ubuntu images.
+  GitHub's Ubuntu images, and the Action uses the newest version there.
+- apksigner prints only the newest signature scheme's signers, and build-tools 37 changed the line
+  format from `Signer #1 certificate SHA-256 digest:` to `V2 Signer: certificate SHA-256 digest:`
+  (`V3.0`, `V3.1`, and `V2 Signer #1:` for several signers). A key rotated with a v3.1 lineage
+  prints one signer per SDK range; the Action records the current key, the one whose range ends
+  highest.
 - Apps whose launcher icon exists only as adaptive-icon XML (min SDK 26+) have no bitmap to extract;
   use the `icon` input instead.
 - Default Channel: runs on the default branch (push, `workflow_dispatch`, `schedule`) go to `main`,

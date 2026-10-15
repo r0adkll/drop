@@ -30,9 +30,21 @@ describe("parseSignerDigest", () => {
     expect(parseSignerDigest(fixture("apksigner-one.txt"))).toBe("3a9fc2417bd1e8a06f4c2259e0d7b31aa45c6e9082f17d3b5e08c4aa5de1e107");
   });
 
+  it("reads build-tools 37's scheme-prefixed output", () => {
+    expect(parseSignerDigest(fixture("apksigner-37-v2.txt"))).toBe("174c51c931d010ec1aec6ff7da82483cba386a3b0f0dd4a5be9cc01f552f30ef");
+    expect(parseSignerDigest(fixture("apksigner-37-v3.txt"))).toBe("174c51c931d010ec1aec6ff7da82483cba386a3b0f0dd4a5be9cc01f552f30ef");
+  });
+
+  it("returns the current key of a rotated signer", () => {
+    for (const name of ["apksigner-36-rotated.txt", "apksigner-37-rotated.txt"]) {
+      expect(parseSignerDigest(fixture(name))).toBe("1f5ae1f0d3a5748e647613748a304808457f31d6b168b07a4701d09077306184");
+    }
+  });
+
   it("refuses unsigned and multi-signer APKs", () => {
     expect(() => parseSignerDigest("")).toThrow(/signed APK/);
     expect(() => parseSignerDigest(fixture("apksigner-two.txt"))).toThrow(/more than one signer/);
+    expect(() => parseSignerDigest(fixture("apksigner-37-two.txt"))).toThrow(/more than one signer/);
   });
 });
 

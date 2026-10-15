@@ -54,11 +54,28 @@ export function parseBadging(output: string): Badging {
   return { packageName, versionCode, versionName, label: label || fallbackLabel, icons };
 }
 
-/** Parses `apksigner verify --print-certs <apk>` output into the signing certificate's SHA-256. */
+/**
+ * A signer line from `apksigner verify --print-certs`, which prints only the newest scheme's signers:
+ * `Signer #1 certificate …` up to build-tools 36, `V2 Signer: certificate …` or `V2 Signer #1:
+ * certificate …` from 37. A key rotated with a v3.1 lineage prints one signer per SDK range, as
+ * `Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate …` or `V3.1 Signer: (…) certificate …`.
+ */
+const SIGNER_DIGEST = /^(?:V[\d.]+ )?Signer(?: #\d+)?:?(?: \(minSdkVersion=\d+, maxSdkVersion=(\d+)\))? certificate SHA-256 digest: ([0-9a-fA-F]{64})$/gm;
+
+/**
+ * Parses `apksigner verify --print-certs <apk>` output into the signing certificate's SHA-256. For a
+ * rotated key this is the current one, the signer for the newest SDK range.
+ */
 export function parseSignerDigest(output: string): string {
-  const digests = new Set<string>();
-  for (const match of output.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$/gm)) digests.add(match[1]!.toLowerCase());
-  if (digests.size === 0) throw new Error("apksigner found no signing certificate. Drop needs a signed APK.");
+  const signers = [...output.matchAll(SIGNER_DIGEST)].map((match) => ({
+    maxSdk: match[1] === undefined ? undefined : Number(match[1]),
+    digest: match[2]!.toLowerCase(),
+  }));
+  if (signers.length === 0) throw new Error("apksigner found no signing certificate. Drop needs a signed APK.");
+  if (signers.every((signer) => signer.maxSdk !== undefined)) {
+    return signers.reduce((newest, signer) => (signer.maxSdk! > newest.maxSdk! ? signer : newest)).digest;
+  }
+  const digests = new Set(signers.map((signer) => signer.digest));
   if (digests.size > 1) throw new Error("The APK has more than one signer; Drop supports one signing certificate per Build.");
   return [...digests][0]!;
 }

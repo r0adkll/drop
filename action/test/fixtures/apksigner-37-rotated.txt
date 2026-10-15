@@ -1,0 +1,8 @@
+V3.1 Signer: (minSdkVersion=33, maxSdkVersion=2147483647) certificate DN: CN=b
+V3.1 Signer: (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-256 digest: 1f5ae1f0d3a5748e647613748a304808457f31d6b168b07a4701d09077306184
+V3.1 Signer: (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-1 digest: 25cd699654758fc9e597f7a74ec0a55706e4b063
+V3.1 Signer: (minSdkVersion=33, maxSdkVersion=2147483647) certificate MD5 digest: 83947aa5d706222bd7376cc87cb0abcd
+V3.0 Signer: (minSdkVersion=24, maxSdkVersion=32) certificate DN: CN=a
+V3.0 Signer: (minSdkVersion=24, maxSdkVersion=32) certificate SHA-256 digest: 174c51c931d010ec1aec6ff7da82483cba386a3b0f0dd4a5be9cc01f552f30ef
+V3.0 Signer: (minSdkVersion=24, maxSdkVersion=32) certificate SHA-1 digest: 6bac27881260ef62f3900f4553450a304033ee8c
+V3.0 Signer: (minSdkVersion=24, maxSdkVersion=32) certificate MD5 digest: 74f30fa0a2b05eb74add53f167ed2af2

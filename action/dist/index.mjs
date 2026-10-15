@@ -21006,10 +21006,17 @@ function parseBadging(output) {
   }
   return { packageName, versionCode, versionName, label: label || fallbackLabel, icons };
 }
+var SIGNER_DIGEST = /^(?:V[\d.]+ )?Signer(?: #\d+)?:?(?: \(minSdkVersion=\d+, maxSdkVersion=(\d+)\))? certificate SHA-256 digest: ([0-9a-fA-F]{64})$/gm;
 function parseSignerDigest(output) {
-  const digests = /* @__PURE__ */ new Set();
-  for (const match of output.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$/gm)) digests.add(match[1].toLowerCase());
-  if (digests.size === 0) throw new Error("apksigner found no signing certificate. Drop needs a signed APK.");
+  const signers = [...output.matchAll(SIGNER_DIGEST)].map((match) => ({
+    maxSdk: match[1] === void 0 ? void 0 : Number(match[1]),
+    digest: match[2].toLowerCase()
+  }));
+  if (signers.length === 0) throw new Error("apksigner found no signing certificate. Drop needs a signed APK.");
+  if (signers.every((signer) => signer.maxSdk !== void 0)) {
+    return signers.reduce((newest, signer) => signer.maxSdk > newest.maxSdk ? signer : newest).digest;
+  }
+  const digests = new Set(signers.map((signer) => signer.digest));
   if (digests.size > 1) throw new Error("The APK has more than one signer; Drop supports one signing certificate per Build.");
   return [...digests][0];
 }
