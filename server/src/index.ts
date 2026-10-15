@@ -1,16 +1,20 @@
 import { Hono, type Context } from "hono";
-import { unconfiguredAllowedRepositories, type AllowedRepositories } from "./allowed-repositories";
-import { config } from "./config";
+import { installationAllowedRepositories, type AllowedRepositories, type AllowList } from "./allowed-repositories";
+import { config, lock } from "./config";
 import { ApiError, type ErrorBody } from "./errors";
 import type { components } from "./generated/openapi";
+import { handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
 import { r2Presigner, type Presigner } from "./presign";
 import { completeUpload, createUpload, parseCreateUpload } from "./uploads";
 
 type Health = components["schemas"]["Health"];
+type WebhookResult = components["schemas"]["WebhookResult"];
 
 export interface Dependencies {
-  allowedRepositories: AllowedRepositories;
+  /** Listed Owners and repository exceptions, from the config and its lockfile. */
+  allowList: AllowList;
+  allowedRepositories: (env: Env) => AllowedRepositories;
   verifyToken: TokenVerifier;
   presigner: (env: Env) => Presigner;
   now: () => number;
@@ -50,7 +54,7 @@ export function createApp(deps: Dependencies) {
       {
         env: c.env,
         claims,
-        allowedRepositories: deps.allowedRepositories,
+        allowedRepositories: deps.allowedRepositories(c.env),
         presigner: deps.presigner(c.env),
         now: deps.now(),
         waitUntil: waitUntil(c),
@@ -67,6 +71,26 @@ export function createApp(deps: Dependencies) {
     return c.json(await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId));
   });
 
+  app.post("/api/v1/github/webhook", async (c) => {
+    const body = await c.req.arrayBuffer();
+    if (!(await verifyWebhookSignature(c.env.GITHUB_WEBHOOK_SECRET, body, c.req.header("x-hub-signature-256")))) {
+      throw new ApiError(401, "webhook_signature_invalid", "The X-Hub-Signature-256 header doesn't match the webhook secret.");
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(new TextDecoder().decode(body));
+    } catch {
+      throw new ApiError(400, "invalid_request", "The body must be JSON.");
+    }
+    try {
+      const result = await handleWebhook(c.env.DB, deps.allowList.owners, c.req.header("x-github-event") ?? "", payload, deps.now());
+      return c.json<WebhookResult>({ result });
+    } catch (error) {
+      if (error instanceof WebhookPayloadError) throw new ApiError(400, "invalid_request", error.message);
+      throw error;
+    }
+  });
+
   app.notFound((c) => c.json<ErrorBody>({ code: "not_found", message: "Not found" }, 404));
 
   app.onError((err, c) => {
@@ -78,8 +102,11 @@ export function createApp(deps: Dependencies) {
   return app;
 }
 
+const allowList: AllowList = { owners: lock.owners, exceptions: config.repositories };
+
 export const app = createApp({
-  allowedRepositories: unconfiguredAllowedRepositories,
+  allowList,
+  allowedRepositories: (env) => installationAllowedRepositories(env.DB, allowList),
   // Module scope, so the GitHub key set is cached for the isolate's lifetime.
   verifyToken: createTokenVerifier({ audience: config.url }),
   presigner: (env) =>

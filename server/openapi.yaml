@@ -73,6 +73,41 @@ paths:
                 $ref: "#/components/schemas/UploadedBuild"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/github/webhook:
+    post:
+      operationId: receiveGitHubWebhook
+      summary: Receives the deployment's GitHub App webhooks.
+      description: >
+        Called by GitHub, signed with the App's webhook secret. Drop records the installations of
+        listed Owners from `installation` and `installation_repositories` events (ADR 0004) and
+        answers every other event, and installations by other accounts, as ignored.
+      parameters:
+        - name: X-GitHub-Event
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Hub-Signature-256
+          in: header
+          required: true
+          description: "`sha256=` and the hex HMAC-SHA256 of the body under the webhook secret."
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: The event was verified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResult"
+        default:
+          $ref: "#/components/responses/Error"
 components:
   securitySchemes:
     githubOidc:
@@ -118,8 +153,10 @@ components:
         - invalid_request
         - token_missing
         - token_invalid
-        - allow_list_not_configured
-        - repository_not_allowed
+        - owner_not_listed
+        - app_not_installed
+        - repository_not_selected
+        - webhook_signature_invalid
         - event_not_allowed
         - product_bound_to_other_repository
         - channel_invalid
@@ -132,6 +169,15 @@ components:
         - file_missing
         - file_size_mismatch
         - file_checksum_mismatch
+    WebhookResult:
+      type: object
+      additionalProperties: false
+      required: [result]
+      properties:
+        result:
+          description: Whether Drop recorded anything from the event.
+          type: string
+          enum: [applied, ignored]
     BuildId:
       description: 8 random base62 characters.
       type: string

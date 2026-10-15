@@ -61,6 +61,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/github/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receives the deployment's GitHub App webhooks.
+         * @description Called by GitHub, signed with the App's webhook secret. Drop records the installations of listed Owners from `installation` and `installation_repositories` events (ADR 0004) and answers every other event, and installations by other accounts, as ignored.
+         */
+        post: operations["receiveGitHubWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -78,7 +98,14 @@ export interface components {
          * @description A stable, machine-readable reason. New codes may be added; clients treat an unknown code as a generic failure.
          * @enum {string}
          */
-        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "allow_list_not_configured" | "repository_not_allowed" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch";
+        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "owner_not_listed" | "app_not_installed" | "repository_not_selected" | "webhook_signature_invalid" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch";
+        WebhookResult: {
+            /**
+             * @description Whether Drop recorded anything from the event.
+             * @enum {string}
+             */
+            result: "applied" | "ignored";
+        };
         /** @description 8 random base62 characters. */
         BuildId: string;
         /** @description A SHA-256 digest in lowercase hex. */
@@ -230,6 +257,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadedBuild"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    receiveGitHubWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-GitHub-Event": string;
+                /** @description `sha256=` and the hex HMAC-SHA256 of the body under the webhook secret. */
+                "X-Hub-Signature-256": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The event was verified. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookResult"];
                 };
             };
             default: components["responses"]["Error"];

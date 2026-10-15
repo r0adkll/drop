@@ -63,12 +63,16 @@ export function fakeAllowList(decide: (repositoryId: number) => AllowDecision): 
 
 export const allowAll = fakeAllowList(() => ({ allowed: true, allowEvents: [] }));
 
+/** The Owner the default claims come from, as a lockfile would list it. */
+export const TEST_ALLOW_LIST = { owners: { "your-org": 2001 } };
+
 export async function createTestApp(overrides: Partial<Dependencies> = {}) {
   const issuer = await createIssuer();
   const keys = jwksFetch([issuer.publicJwk]);
   let now = NOW;
   const app = createApp({
-    allowedRepositories: allowAll,
+    allowList: TEST_ALLOW_LIST,
+    allowedRepositories: () => allowAll,
     verifyToken: createTokenVerifier({ audience: AUDIENCE, fetch: keys.fetch, now: () => now }),
     presigner: () => r2Presigner({ accountId: "test-account", accessKeyId: "test-key", secretAccessKey: "test-secret", bucket: "drop-builds" }),
     now: () => now,

@@ -2,7 +2,7 @@ import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 // Placeholder values for the Worker's required secrets; wrangler reads them from process.env.
-const testSecrets = { R2_ACCOUNT_ID: "test-account", R2_ACCESS_KEY_ID: "test-key", R2_SECRET_ACCESS_KEY: "test-secret" };
+const testSecrets = { R2_ACCOUNT_ID: "test-account", R2_ACCESS_KEY_ID: "test-key", R2_SECRET_ACCESS_KEY: "test-secret", GITHUB_WEBHOOK_SECRET: "test-webhook-secret" };
 
 export default defineConfig(async () => {
   Object.assign(process.env, testSecrets);

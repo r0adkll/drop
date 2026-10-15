@@ -1,7 +1,8 @@
 import rawConfig from "../../drop.config.json";
+import rawLock from "../../drop.config.lock.json";
 
-// Mirrors drop.config.schema.json. The file is checked against the schema by `npm run check:config`
-// before deploy and in tests, not at request time.
+// Mirrors drop.config.schema.json. Both files are checked by `npm run check:config` before deploy and
+// in tests, not at request time.
 
 export type OwnerName = string;
 export type RepositoryName = `${string}/${string}`;
@@ -9,9 +10,9 @@ export type ApplicationId = string;
 
 export type AllowedEvent = "pull_request_target" | "workflow_run";
 
-export interface RepositoryEntry {
-  repository: RepositoryName;
-  allowEvents?: AllowedEvent[];
+/** An exception for one repository. It never grants access by itself (ADR 0004). */
+export interface RepositoryException {
+  allowEvents: AllowedEvent[];
 }
 
 export interface Webhook {
@@ -35,19 +36,20 @@ export interface ProductOverrides {
 
 export interface DropConfig {
   url: string;
-  repositories: (OwnerName | RepositoryName | RepositoryEntry)[];
+  owners: OwnerName[];
+  repositories?: Record<RepositoryName, RepositoryException>;
   webhooks?: Record<string, Webhook>;
   products?: Record<ApplicationId, ProductOverrides>;
 }
 
 /**
- * The numeric GitHub IDs behind the `repositories` entries. Uploads are matched against these, never
- * names, because a deleted account's name can be registered again (ADR 0004). Resolving them is
- * setup's job and not built yet.
+ * drop.config.lock.json: the numeric GitHub ID of each listed Owner, written by `npm run setup`.
+ * Uploads and installations are matched against these, never names, because a renamed or deleted
+ * account's name can be registered by someone else (ADR 0004).
  */
-export interface ResolvedRepositories {
-  ownerIds: Record<OwnerName, number>;
-  repositoryIds: Record<RepositoryName, { id: number; allowEvents: AllowedEvent[] }>;
+export interface DropLock {
+  owners: Record<OwnerName, number>;
 }
 
 export const config = rawConfig as DropConfig;
+export const lock = rawLock as DropLock;

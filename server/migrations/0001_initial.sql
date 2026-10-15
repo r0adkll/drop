@@ -113,3 +113,27 @@ CREATE TABLE uploads (
   created_at INTEGER NOT NULL,
   UNIQUE (application_id, run_id)
 );
+
+-- Installations of the deployment's GitHub App on listed Owners, kept from its webhooks. Within a
+-- listed Owner, the repositories an installation covers are the ones that may upload (ADR 0004).
+-- Installations by any other account are never recorded.
+CREATE TABLE installations (
+  -- GitHub's installation ID.
+  id INTEGER PRIMARY KEY,
+  -- An account installs an App at most once.
+  account_id INTEGER NOT NULL UNIQUE,
+  account_login TEXT NOT NULL,
+  -- 'all': every repository of the account; 'selected': only installation_repositories.
+  repository_selection TEXT NOT NULL CHECK (repository_selection IN ('all', 'selected')),
+  suspended_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE installation_repositories (
+  installation_id INTEGER NOT NULL REFERENCES installations (id) ON DELETE CASCADE,
+  repository_id INTEGER NOT NULL,
+  -- owner/name as last reported. For display only.
+  full_name TEXT NOT NULL,
+  PRIMARY KEY (installation_id, repository_id)
+);

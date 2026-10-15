@@ -52,7 +52,16 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - Created per deployment through the manifest flow; its private key and webhook secret are Worker
   secrets. Verify webhooks with the `X-Hub-Signature-256` HMAC.
 - It must be installable by other accounts so a deployment can list several, which lets strangers
-  install it too; ignore installations and webhooks for repositories the list doesn't cover.
+  install it too; ignore installations and webhooks from accounts whose ID isn't a locked Owner.
+- Drop learns which repositories an installation covers only from `installation` and
+  `installation_repositories` webhooks. With *All repositories* selected Drop needs no list, so it
+  doesn't depend on whether `installation.created` includes one (*unverified*). Switching from all to
+  selected reports only the repositories removed (*unverified*), and a missed delivery leaves D1
+  stale; milestone 1 has no resync. Re-saving the selection, or reinstalling the App, sends fresh
+  events.
+- `GET https://api.github.com/users/<login>` returns the numeric `id` for organizations as well as
+  users; unauthenticated calls are limited to 60 an hour, so `npm run setup` uses `GITHUB_TOKEN` or
+  `gh auth token` when it can.
 - Pull request comments show images through GitHub's image proxy, so the QR code in a comment has
   to be an image URL the Worker serves for each Build. SVG should work; switch to PNG if the proxy
   rejects it (*unverified*).

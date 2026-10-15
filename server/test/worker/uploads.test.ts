@@ -1,6 +1,5 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { unconfiguredAllowedRepositories } from "../../src/allowed-repositories";
 import { newBuildId } from "../../src/ids";
 import { mayUpload, resolveChannel } from "../../src/uploads";
 import { createTestApp, fakeAllowList, sha256Hex, uniqueApplicationId, uploadRequest } from "./support";
@@ -42,20 +41,13 @@ describe("POST /api/v1/uploads", () => {
     expect(await response.json()).toMatchObject({ code: "token_missing" });
   });
 
-  it("refuses everything until the allow-list is configured", async () => {
-    const t = await createTestApp({ allowedRepositories: unconfiguredAllowedRepositories });
-    const { status, body } = await create(t, uploadRequest(uniqueApplicationId()));
-    expect(status).toBe(403);
-    expect(body.code).toBe("allow_list_not_configured");
-  });
-
   it("refuses repositories the allow-list doesn't cover", async () => {
     const t = await createTestApp({
-      allowedRepositories: fakeAllowList(() => ({ allowed: false, code: "repository_not_allowed", reason: "Not listed." })),
+      allowedRepositories: () => fakeAllowList(() => ({ allowed: false, code: "repository_not_selected", reason: "Not listed." })),
     });
     const { status, body } = await create(t, uploadRequest(uniqueApplicationId()));
     expect(status).toBe(403);
-    expect(body).toEqual({ code: "repository_not_allowed", message: "Not listed." });
+    expect(body).toEqual({ code: "repository_not_selected", message: "Not listed." });
   });
 
   it.each(["pull_request_target", "workflow_run"])("refuses %s runs unless the repository allows them", async (event) => {
@@ -63,7 +55,7 @@ describe("POST /api/v1/uploads", () => {
     const claims = { event_name: event, run_id: nextRun() };
     expect((await create(refused, uploadRequest(uniqueApplicationId(), { channel: "fork-builds", defaultBranch: false }), claims)).body.code).toBe("event_not_allowed");
 
-    const allowed = await createTestApp({ allowedRepositories: fakeAllowList(() => ({ allowed: true, allowEvents: [event as "workflow_run"] })) });
+    const allowed = await createTestApp({ allowedRepositories: () => fakeAllowList(() => ({ allowed: true, allowEvents: [event as "workflow_run"] })) });
     expect((await create(allowed, uploadRequest(uniqueApplicationId(), { channel: "fork-builds", defaultBranch: false }), claims)).status).toBe(201);
   });
 

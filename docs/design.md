@@ -68,10 +68,12 @@ the claims check. The server accepts an upload only when its token:
   `https://token.actions.githubusercontent.com`, and unexpired (tokens last minutes);
 - has the deployment's own URL as its audience, so a token minted for another service can't be
   replayed here;
-- comes from a repository covered by the config's required `repositories` list
-  ([ADR 0004](adr/0004-explicit-source-list.md)): its `repository_owner_id` matches an account
-  entry, or its `repository_id` matches a repository entry. IDs, not names: a renamed or deleted
-  account's name can be registered by someone else, but its ID is never reused;
+- comes from an Allowed repository ([ADR 0004](adr/0004-explicit-source-list.md)): its
+  `repository_owner_id` is the ID `drop.config.lock.json` records for an Owner in the config's
+  required `owners` list, and that Owner's installation of the deployment's GitHub App covers its
+  `repository_id` (all repositories, or the selected ones the App's webhooks reported). IDs, not
+  names: a renamed or deleted account's name can be registered by someone else, but its ID is
+  never reused;
 - comes from the repository its Product is bound to, if the Product already exists
   ([ADR 0015](adr/0015-product-identity.md));
 - was not issued to a `pull_request_target` or `workflow_run` run, unless the config allows that
@@ -169,12 +171,16 @@ the server themselves from the template.
 - Drop is a template repository. An adopter makes their own copy, edits `drop.config.json`
   (checked against a JSON Schema and bundled into the Worker at deploy), adds the Worker secrets
   and deploys with `wrangler deploy` or Cloudflare's Git integration.
-- The config holds the deployment's URL, the required `repositories` list (whole accounts such as
-  `"campfire"` or single repositories such as `"r0adkll/side-app"`, with any per-repository
-  allowance for `pull_request_target` or `workflow_run` uploads), webhooks and per-Product
-  overrides (force private, retention, icon, display name). Setup resolves each entry to its
-  numeric ID. Secrets, such as the GitHub App's private key, are Worker
-  secrets and never appear in the config.
+- The config holds the deployment's URL, the required `owners` list (accounts such as `"campfire"`
+  or `"r0adkll"`), per-repository exceptions allowing `pull_request_target` or `workflow_run`
+  uploads (`"repositories": { "r0adkll/side-app": { "allowEvents": [...] } }`; they never grant
+  access), webhooks and per-Product overrides (force private, retention, icon, display name).
+  `npm run setup` records each Owner's numeric ID in `drop.config.lock.json`, which is checked in and
+  bundled with the config; the deploy check fails while an Owner is missing from it, and setup keeps
+  locked IDs unless run with `--refresh`. Each Owner then installs the deployment's GitHub App on
+  the repositories it wants to upload from; changing that selection needs no redeploy. Secrets,
+  such as the GitHub App's private key and webhook secret, are Worker secrets and never appear in
+  the config.
 - There is no admin interface in milestone 1. Emergencies (for example a Build that leaked a
   secret) are handled with a documented `wrangler` script that deletes a Build.
 

@@ -26,7 +26,7 @@
   },
   // Set with `wrangler secret put`; see README.md.
   "secrets": {
-    "required": ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]
+    "required": ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "GITHUB_WEBHOOK_SECRET"]
   },
   "triggers": {
     // Retention runs hourly; see docs/design.md#retention.
