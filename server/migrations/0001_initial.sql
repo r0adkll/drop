@@ -35,6 +35,9 @@ CREATE TABLE channels (
 
 CREATE UNIQUE INDEX channels_one_default ON channels (application_id) WHERE is_default = 1;
 
+-- Confirmed Builds only: a Build appears here once its files are uploaded and checked. Uploads in
+-- flight live in `uploads`, so a later attempt of a run replaces a Build without taking it offline
+-- (ADR 0013).
 CREATE TABLE builds (
   -- 8 random base62 characters: opaque so Build page URLs can't be enumerated once private
   -- Products exist, and short so their QR codes stay sparse.
@@ -71,10 +74,8 @@ CREATE TABLE builds (
   file_sha256 TEXT NOT NULL,
   file_key TEXT NOT NULL,
   icon_key TEXT,
-  -- When the upload was started.
-  created_at INTEGER NOT NULL,
-  -- When the file's size and SHA-256 were confirmed. Until then the Build is not offered anywhere.
-  uploaded_at INTEGER,
+  -- When the files were confirmed: the upload time that retention counts from.
+  uploaded_at INTEGER NOT NULL,
   -- When retention or an operator deleted the file.
   deleted_at INTEGER,
   UNIQUE (application_id, run_id)
@@ -82,3 +83,33 @@ CREATE TABLE builds (
 
 -- The newest Build of a Channel: highest run ID, upload time breaking ties (ADR 0009).
 CREATE INDEX builds_by_channel ON builds (channel_id, run_id DESC, uploaded_at DESC);
+
+-- Uploads in flight: one per Product and run, holding the attempt's values until its files are
+-- confirmed and copied into `builds`. A new Build's ID is reserved here; a later attempt of a
+-- confirmed Build reuses that Build's ID. Abandoned rows are left for the retention job.
+CREATE TABLE uploads (
+  build_id TEXT PRIMARY KEY NOT NULL CHECK (length(build_id) = 8),
+  application_id TEXT NOT NULL REFERENCES products (application_id),
+  channel_id INTEGER NOT NULL REFERENCES channels (id),
+  run_id INTEGER NOT NULL,
+  run_attempt INTEGER NOT NULL,
+  workflow TEXT NOT NULL,
+  run_number INTEGER NOT NULL,
+  event_name TEXT NOT NULL,
+  ref TEXT NOT NULL,
+  commit_sha TEXT NOT NULL,
+  built_sha TEXT NOT NULL,
+  commit_message TEXT,
+  pull_request_title TEXT,
+  version_code INTEGER NOT NULL,
+  version_name TEXT,
+  label TEXT,
+  signer_sha256 TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  file_sha256 TEXT NOT NULL,
+  file_key TEXT NOT NULL,
+  icon_key TEXT,
+  -- When the upload was started.
+  created_at INTEGER NOT NULL,
+  UNIQUE (application_id, run_id)
+);

@@ -32,7 +32,7 @@ export interface paths {
         put?: never;
         /**
          * Starts uploading a Build.
-         * @description Creates the Build as pending and returns presigned URLs to `PUT` its files to directly. The Build is offered nowhere until `completeUpload` confirms the files. A run uploads at most one Build per Product: a pending Build of the same run is replaced, and a confirmed one is replaced only by a later run attempt, which keeps its ID (ADR 0013).
+         * @description Reserves the Build's ID and returns presigned URLs to `PUT` its files to directly. Nothing is offered until `completeUpload` confirms the files. A run uploads at most one Build per Product: an upload in flight from the same run is replaced, and a confirmed Build is replaced only by a later run attempt, which keeps its ID and keeps serving the earlier attempt's file until the later one is confirmed (ADR 0013).
          */
         post: operations["createUpload"];
         delete?: never;
@@ -52,7 +52,7 @@ export interface paths {
         put?: never;
         /**
          * Confirms a Build's files and makes it available.
-         * @description Checks the uploaded APK's size, and its SHA-256 when storage reports one, then marks the Build uploaded. Must be called with a token from the same run attempt that created the upload. Completing an already confirmed Build succeeds without changing it.
+         * @description Checks the uploaded APK's size, and its SHA-256 when storage reports one, then makes the Build available, replacing the earlier attempt's files if it had any. Must be called with a token from the same run attempt that created the upload. Completing an already confirmed Build succeeds without changing it.
          */
         post: operations["completeUpload"];
         delete?: never;
@@ -200,7 +200,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The Build is pending; upload its files to the returned URLs. */
+            /** @description The upload has started; `PUT` its files to the returned URLs. */
             201: {
                 headers: {
                     [name: string]: unknown;

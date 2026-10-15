@@ -64,7 +64,7 @@ export function createApp(deps: Dependencies) {
     const buildId = c.req.param("buildId");
     if (!BUILD_ID.test(buildId)) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
     const claims = await claimsOf(c);
-    return c.json(await completeUpload({ env: c.env, claims, now: deps.now() }, buildId));
+    return c.json(await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId));
   });
 
   app.notFound((c) => c.json<ErrorBody>({ code: "not_found", message: "Not found" }, 404));
@@ -96,5 +96,7 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller, _env, _ctx) {
     // Retention (docs/design.md#retention) is not implemented yet.
+    // TODO: also delete abandoned `uploads` rows (older than the upload URL lifetime) and their R2
+    // objects, which completeUpload never reached.
   },
 } satisfies ExportedHandler<Env>;

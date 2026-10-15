@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { unconfiguredAllowedRepositories } from "../../src/allowed-repositories";
 import { newBuildId } from "../../src/ids";
-import { replacementFor, resolveChannel } from "../../src/uploads";
+import { mayUpload, resolveChannel } from "../../src/uploads";
 import { createTestApp, fakeAllowList, sha256Hex, uniqueApplicationId, uploadRequest } from "./support";
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>;
@@ -27,6 +27,7 @@ async function complete(t: TestApp, buildId: string, claims: Record<string, unkn
 }
 
 const build = (id: string) => env.DB.prepare("SELECT * FROM builds WHERE id = ?").bind(id).first<Record<string, any>>();
+const upload = (id: string) => env.DB.prepare("SELECT * FROM uploads WHERE build_id = ?").bind(id).first<Record<string, any>>();
 const channels = (applicationId: string) =>
   env.DB.prepare("SELECT name, is_default, pull_request FROM channels WHERE application_id = ? ORDER BY name").bind(applicationId).all().then((r) => r.results);
 
@@ -74,7 +75,7 @@ describe("POST /api/v1/uploads", () => {
     expect((await create(t, { ...uploadRequest(uniqueApplicationId()), extra: 1 })).body.code).toBe("invalid_request");
   });
 
-  it("creates a pending Build on the default Channel with presigned URLs", async () => {
+  it("starts an upload on the default Channel with presigned URLs", async () => {
     const t = await createTestApp();
     const applicationId = uniqueApplicationId();
     const iconSha = "c".repeat(64);
@@ -92,14 +93,14 @@ describe("POST /api/v1/uploads", () => {
     expect(body.apk.headers).toEqual({ "x-amz-checksum-sha256": btoa(String.fromCharCode(...new Uint8Array(32).fill(0xbb))) });
     expect(new URL(body.icon.url).pathname).toBe(`/drop-builds/builds/${body.buildId}/1/icon.png`);
 
-    expect(await build(body.buildId)).toMatchObject({
+    expect(await build(body.buildId)).toBeNull();
+    expect(await upload(body.buildId)).toMatchObject({
       application_id: applicationId,
       workflow: "Android",
       run_number: 1876,
       commit_sha: "9f3c2a1".padEnd(40, "0"),
       built_sha: "a".repeat(40),
       commit_message: "Cache map tiles",
-      uploaded_at: null,
     });
     expect(await channels(applicationId)).toEqual([{ name: "main", is_default: 1, pull_request: null }]);
   });
@@ -116,7 +117,7 @@ describe("POST /api/v1/uploads", () => {
     const right = await create(t, uploadRequest(applicationId, pr), { event_name: "pull_request", ref: "refs/pull/142/merge", run_id: nextRun() });
     expect(right.status).toBe(201);
     expect(await channels(applicationId)).toEqual([{ name: "pr/142", is_default: 0, pull_request: 142 }]);
-    expect((await build(right.body.buildId))!.pull_request_title).toBe("Offline map tiles");
+    expect((await upload(right.body.buildId))!.pull_request_title).toBe("Offline map tiles");
   });
 
   it("refuses an upload to an ended Channel", async () => {
@@ -153,45 +154,72 @@ describe("POST /api/v1/uploads", () => {
   });
 
   describe("in a run that already uploaded the Product", () => {
-    it("replaces a pending Build, keeping its ID", async () => {
+    const apkBytes = new TextEncoder().encode("apk!");
+
+    /** Uploads and completes the APK for an upload started with `create`. */
+    async function confirm(t: TestApp, buildId: string, attempt: number, claims: Record<string, unknown>) {
+      await env.BUILDS.put(`builds/${buildId}/${attempt}/app.apk`, apkBytes);
+      expect((await complete(t, buildId, claims)).status).toBe(200);
+    }
+    const sized = (applicationId: string, overrides: Record<string, unknown> = {}) =>
+      uploadRequest(applicationId, { apk: { size: apkBytes.length, sha256: "b".repeat(64) }, ...overrides });
+
+    it("replaces an upload in flight, keeping its ID", async () => {
       const t = await createTestApp();
       const applicationId = uniqueApplicationId();
       const claims = { run_id: nextRun() };
-      const first = await create(t, uploadRequest(applicationId), claims);
-      const retry = await create(t, uploadRequest(applicationId, { versionCode: 4128 }), claims);
+      const first = await create(t, sized(applicationId), claims);
+      const retry = await create(t, sized(applicationId, { versionCode: 4128 }), claims);
 
       expect(retry.status).toBe(201);
       expect(retry.body.buildId).toBe(first.body.buildId);
-      expect((await build(first.body.buildId))!.version_code).toBe(4128);
+      expect((await upload(first.body.buildId))!.version_code).toBe(4128);
     });
 
     it("refuses another Build from the same attempt once confirmed", async () => {
       const t = await createTestApp();
       const applicationId = uniqueApplicationId();
       const claims = { run_id: nextRun() };
-      const first = await create(t, uploadRequest(applicationId), claims);
-      await env.DB.prepare("UPDATE builds SET uploaded_at = 1 WHERE id = ?").bind(first.body.buildId).run();
+      const first = await create(t, sized(applicationId), claims);
+      await confirm(t, first.body.buildId, 1, claims);
 
-      const again = await create(t, uploadRequest(applicationId), claims);
+      const again = await create(t, sized(applicationId), claims);
       expect(again.status).toBe(409);
       expect(again.body.code).toBe("build_exists_for_run");
     });
 
-    it("replaces a confirmed Build with a later attempt, deleting the old files", async () => {
+    it("keeps serving a confirmed Build while a later attempt uploads, then swaps it", async () => {
       const t = await createTestApp();
       const applicationId = uniqueApplicationId();
       const run = nextRun();
-      const first = await create(t, uploadRequest(applicationId), { run_id: run });
-      const oldKey = `builds/${first.body.buildId}/1/app.apk`;
-      await env.BUILDS.put(oldKey, "old!");
-      await env.DB.prepare("UPDATE builds SET uploaded_at = 1 WHERE id = ?").bind(first.body.buildId).run();
+      const first = await create(t, sized(applicationId), { run_id: run });
+      const id = first.body.buildId as string;
+      await confirm(t, id, 1, { run_id: run });
+      const oldKey = `builds/${id}/1/app.apk`;
 
-      const rerun = await create(t, uploadRequest(applicationId), { run_id: run, run_attempt: "2" });
-
+      const rerun = await create(t, sized(applicationId, { versionCode: 4130 }), { run_id: run, run_attempt: "2" });
       expect(rerun.status).toBe(201);
-      expect(rerun.body.buildId).toBe(first.body.buildId);
-      expect(await build(first.body.buildId)).toMatchObject({ run_attempt: 2, uploaded_at: null, file_key: `builds/${first.body.buildId}/2/app.apk` });
+      expect(rerun.body.buildId).toBe(id);
+      expect(await build(id)).toMatchObject({ run_attempt: 1, version_code: 4127, file_key: oldKey });
+      expect(await env.BUILDS.head(oldKey)).not.toBeNull();
+
+      await confirm(t, id, 2, { run_id: run, run_attempt: "2" });
+      expect(await build(id)).toMatchObject({ run_attempt: 2, version_code: 4130, file_key: `builds/${id}/2/app.apk` });
+      expect(await upload(id)).toBeNull();
       await expect.poll(() => env.BUILDS.head(oldKey)).toBeNull();
+    });
+
+    it("leaves a confirmed Build in place when the later attempt never completes", async () => {
+      const t = await createTestApp();
+      const applicationId = uniqueApplicationId();
+      const run = nextRun();
+      const first = await create(t, sized(applicationId), { run_id: run });
+      await confirm(t, first.body.buildId, 1, { run_id: run });
+
+      await create(t, sized(applicationId), { run_id: run, run_attempt: "2" });
+      const failed = await complete(t, first.body.buildId, { run_id: run, run_attempt: "2" });
+      expect(failed.body.code).toBe("file_missing");
+      expect(await build(first.body.buildId)).toMatchObject({ run_attempt: 1 });
     });
   });
 });
@@ -257,7 +285,7 @@ describe("POST /api/v1/uploads/{id}/complete", () => {
     const other = new TextEncoder().encode("evil");
     await env.BUILDS.put(p.key, other, { sha256: await sha256Hex(other) });
     expect((await complete(t, p.buildId, { run_id: p.run })).body.code).toBe("file_checksum_mismatch");
-    expect((await build(p.buildId))!.uploaded_at).toBeNull();
+    expect(await build(p.buildId)).toBeNull();
   });
 
   it("refuses a token from another run attempt", async () => {
@@ -305,13 +333,12 @@ describe("resolveChannel", () => {
   });
 });
 
-describe("replacementFor", () => {
+describe("mayUpload", () => {
   it("follows ADR 0013", () => {
-    expect(replacementFor(null, 1)).toBe("insert");
-    expect(replacementFor({ runAttempt: 3, confirmed: false }, 1)).toBe("replace");
-    expect(replacementFor({ runAttempt: 1, confirmed: true }, 2)).toBe("replace");
-    expect(replacementFor({ runAttempt: 2, confirmed: true }, 2)).toBe("reject");
-    expect(replacementFor({ runAttempt: 2, confirmed: true }, 1)).toBe("reject");
+    expect(mayUpload(null, 1)).toBe(true);
+    expect(mayUpload(1, 2)).toBe(true);
+    expect(mayUpload(2, 2)).toBe(false);
+    expect(mayUpload(2, 1)).toBe(false);
   });
 });
 

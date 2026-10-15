@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 describe("migrations", () => {
   it("create the tables", async () => {
     const { results } = await env.DB.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('products', 'channels', 'builds') ORDER BY name",
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('products', 'channels', 'builds', 'uploads') ORDER BY name",
     ).all<{ name: string }>();
-    expect(results.map((r) => r.name)).toEqual(["builds", "channels", "products"]);
+    expect(results.map((r) => r.name)).toEqual(["builds", "channels", "products", "uploads"]);
   });
 
   it("allow one Build per run of a Product", async () => {
@@ -22,7 +22,7 @@ describe("migrations", () => {
       env.DB.prepare(
         `INSERT INTO builds (id, application_id, channel_id, run_id, run_attempt, workflow, run_number,
            event_name, ref, commit_sha, built_sha, version_code, signer_sha256, file_size, file_sha256,
-           file_key, created_at)
+           file_key, uploaded_at)
          VALUES (?, 'com.example.app', 1, 42, 1, 'Android', 7, 'push', 'refs/heads/main', 'abc', 'abc', 1,
            'aa', 1, 'bb', 'k', 0)`,
       ).bind(id);

@@ -117,19 +117,12 @@ export function resolveChannel(request: Pick<CreateUploadRequest, "channel" | "d
   return { name, pullRequest: null, isDefault: defaultBranch };
 }
 
-export interface ExistingBuild {
-  runAttempt: number;
-  confirmed: boolean;
-}
-
 /**
- * One Build per Product per run (ADR 0013): a pending Build is always replaced, a confirmed one only by
- * a later attempt of the run.
+ * One Build per Product per run (ADR 0013). An upload in flight is always replaced; a confirmed Build
+ * only by a later attempt of the run, and it keeps serving until that attempt is confirmed.
  */
-export function replacementFor(existing: ExistingBuild | null, runAttempt: number): "insert" | "replace" | "reject" {
-  if (!existing) return "insert";
-  if (!existing.confirmed || runAttempt > existing.runAttempt) return "replace";
-  return "reject";
+export function mayUpload(confirmedAttempt: number | null, runAttempt: number): boolean {
+  return confirmedAttempt === null || runAttempt > confirmedAttempt;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -175,47 +168,48 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
 
   const channelId = await upsertChannel(db, request.applicationId, target, now);
 
-  // Build row.
-  const existing = await db
-    .prepare("SELECT id, run_attempt, uploaded_at, file_key, icon_key FROM builds WHERE application_id = ? AND run_id = ?")
-    .bind(request.applicationId, claims.runId)
-    .first<{ id: string; run_attempt: number; uploaded_at: number | null; file_key: string; icon_key: string | null }>();
-  const action = replacementFor(existing && { runAttempt: existing.run_attempt, confirmed: existing.uploaded_at !== null }, claims.runAttempt);
-  if (action === "reject") {
-    throw new ApiError(409, "build_exists_for_run", `Run ${claims.runId} attempt ${existing!.run_attempt} already uploaded ${request.applicationId}; only a later attempt can replace it.`);
+  // Upload row. The confirmed Build, if any, is left untouched until completeUpload swaps it.
+  const [confirmed, inFlight] = await Promise.all([
+    db
+      .prepare("SELECT id, run_attempt FROM builds WHERE application_id = ? AND run_id = ?")
+      .bind(request.applicationId, claims.runId)
+      .first<{ id: string; run_attempt: number }>(),
+    db
+      .prepare("SELECT build_id, file_key, icon_key FROM uploads WHERE application_id = ? AND run_id = ?")
+      .bind(request.applicationId, claims.runId)
+      .first<{ build_id: string; file_key: string; icon_key: string | null }>(),
+  ]);
+  if (!mayUpload(confirmed?.run_attempt ?? null, claims.runAttempt)) {
+    throw new ApiError(409, "build_exists_for_run", `Run ${claims.runId} attempt ${confirmed!.run_attempt} already uploaded ${request.applicationId}; only a later attempt can replace it.`);
   }
 
-  const id = existing?.id ?? newBuildId();
+  const id = confirmed?.id ?? inFlight?.build_id ?? (await reserveBuildId(db));
   const fileKey = `builds/${id}/${claims.runAttempt}/app.apk`;
   const iconKey = request.icon ? `builds/${id}/${claims.runAttempt}/icon.${request.icon.contentType === "image/png" ? "png" : "webp"}` : null;
-  const values = [
-    request.applicationId, channelId, claims.runId, claims.runAttempt, claims.workflow, claims.runNumber,
-    claims.eventName, claims.ref, request.commit.sha, claims.sha, request.commit.message ?? null,
-    request.pullRequestTitle ?? null, request.versionCode, request.versionName ?? null, request.label ?? null,
-    request.signerSha256, request.apk.size, request.apk.sha256, fileKey, iconKey, now,
-  ];
-  if (action === "insert") {
-    await db
-      .prepare(
-        `INSERT INTO builds (application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref,
-           commit_sha, built_sha, commit_message, pull_request_title, version_code, version_name, label,
-           signer_sha256, file_size, file_sha256, file_key, icon_key, created_at, id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(...values, id)
-      .run();
-  } else {
-    await db
-      .prepare(
-        `UPDATE builds SET application_id = ?, channel_id = ?, run_id = ?, run_attempt = ?, workflow = ?, run_number = ?,
-           event_name = ?, ref = ?, commit_sha = ?, built_sha = ?, commit_message = ?, pull_request_title = ?,
-           version_code = ?, version_name = ?, label = ?, signer_sha256 = ?, file_size = ?, file_sha256 = ?,
-           file_key = ?, icon_key = ?, created_at = ?, uploaded_at = NULL, deleted_at = NULL
-         WHERE id = ?`,
-      )
-      .bind(...values, id)
-      .run();
-    const stale = [existing!.file_key, existing!.icon_key].filter((key): key is string => key !== null && key !== fileKey && key !== iconKey);
+  await db
+    .prepare(
+      `INSERT INTO uploads (build_id, application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name,
+         ref, commit_sha, built_sha, commit_message, pull_request_title, version_code, version_name, label,
+         signer_sha256, file_size, file_sha256, file_key, icon_key, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (build_id) DO UPDATE SET channel_id = excluded.channel_id, run_attempt = excluded.run_attempt,
+         workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
+         ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
+         commit_message = excluded.commit_message, pull_request_title = excluded.pull_request_title,
+         version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
+         signer_sha256 = excluded.signer_sha256, file_size = excluded.file_size, file_sha256 = excluded.file_sha256,
+         file_key = excluded.file_key, icon_key = excluded.icon_key, created_at = excluded.created_at`,
+    )
+    .bind(
+      id, request.applicationId, channelId, claims.runId, claims.runAttempt, claims.workflow, claims.runNumber,
+      claims.eventName, claims.ref, request.commit.sha, claims.sha, request.commit.message ?? null,
+      request.pullRequestTitle ?? null, request.versionCode, request.versionName ?? null, request.label ?? null,
+      request.signerSha256, request.apk.size, request.apk.sha256, fileKey, iconKey, now,
+    )
+    .run();
+  // A replaced upload's files were never offered, so they can go now; same-attempt retries reuse keys.
+  if (inFlight) {
+    const stale = [inFlight.file_key, inFlight.icon_key].filter((key): key is string => key !== null && key !== fileKey && key !== iconKey);
     if (stale.length > 0) ctx.waitUntil(env.BUILDS.delete(stale));
   }
 
@@ -260,43 +254,91 @@ async function upsertChannel(db: D1Database, applicationId: string, target: Chan
   return created!.id;
 }
 
-export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" | "now">, buildId: string): Promise<UploadedBuild> {
+/** A new Build ID, unused by any Build or upload. */
+async function reserveBuildId(db: D1Database): Promise<string> {
+  for (let tries = 0; tries < 5; tries++) {
+    const id = newBuildId();
+    const taken = await db
+      .prepare("SELECT 1 FROM builds WHERE id = ?1 UNION ALL SELECT 1 FROM uploads WHERE build_id = ?1")
+      .bind(id)
+      .first();
+    if (!taken) return id;
+  }
+  throw new Error("Could not find an unused Build ID.");
+}
+
+const BUILD_COLUMNS = `application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref, commit_sha,
+  built_sha, commit_message, pull_request_title, version_code, version_name, label, signer_sha256, file_size,
+  file_sha256, file_key`;
+
+export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" | "now" | "waitUntil">, buildId: string): Promise<UploadedBuild> {
   const { env, claims } = ctx;
-  const build = await env.DB
+  const db = env.DB;
+  const result = { buildId, buildUrl: buildUrl(buildId) };
+  const sameRun = (row: { repository_id: number; run_id: number; run_attempt: number }) =>
+    row.repository_id === claims.repositoryId && row.run_id === claims.runId && row.run_attempt === claims.runAttempt;
+
+  const upload = await db
     .prepare(
-      `SELECT b.run_id, b.run_attempt, b.uploaded_at, b.file_key, b.file_size, b.file_sha256, b.icon_key, p.repository_id
+      `SELECT u.run_id, u.run_attempt, u.file_key, u.file_size, u.file_sha256, u.icon_key, p.repository_id
+       FROM uploads u JOIN products p ON p.application_id = u.application_id WHERE u.build_id = ?`,
+    )
+    .bind(buildId)
+    .first<{ run_id: number; run_attempt: number; file_key: string; file_size: number; file_sha256: string; icon_key: string | null; repository_id: number }>();
+  const confirmed = await db
+    .prepare(
+      `SELECT b.run_id, b.run_attempt, b.file_key, b.icon_key, p.repository_id
        FROM builds b JOIN products p ON p.application_id = b.application_id WHERE b.id = ?`,
     )
     .bind(buildId)
-    .first<{
-      run_id: number; run_attempt: number; uploaded_at: number | null; file_key: string; file_size: number;
-      file_sha256: string; icon_key: string | null; repository_id: number;
-    }>();
-  if (!build) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
-  if (build.repository_id !== claims.repositoryId || build.run_id !== claims.runId || build.run_attempt !== claims.runAttempt) {
-    throw new ApiError(403, "build_run_mismatch", `Build ${buildId} was started by a different run attempt.`);
-  }
-  const result = { buildId, buildUrl: buildUrl(buildId) };
-  if (build.uploaded_at !== null) return result;
+    .first<{ run_id: number; run_attempt: number; file_key: string; icon_key: string | null; repository_id: number }>();
 
-  const apk = await env.BUILDS.head(build.file_key);
+  if (!upload) {
+    // Completing again after success changes nothing.
+    if (confirmed && sameRun(confirmed)) return result;
+    if (confirmed) throw new ApiError(403, "build_run_mismatch", `Build ${buildId} was uploaded by a different run attempt.`);
+    throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
+  }
+  if (!sameRun(upload)) throw new ApiError(403, "build_run_mismatch", `Build ${buildId} was started by a different run attempt.`);
+
+  const apk = await env.BUILDS.head(upload.file_key);
   if (!apk) throw new ApiError(409, "file_missing", "The APK has not been uploaded.");
-  if (apk.size !== build.file_size) {
-    await env.BUILDS.delete(build.file_key);
-    throw new ApiError(409, "file_size_mismatch", `The uploaded APK is ${apk.size} bytes, not ${build.file_size}.`);
+  if (apk.size !== upload.file_size) {
+    await env.BUILDS.delete(upload.file_key);
+    throw new ApiError(409, "file_size_mismatch", `The uploaded APK is ${apk.size} bytes, not ${upload.file_size}.`);
   }
   // Present only if storage verified a checksum on upload; otherwise the size check stands alone and
   // the SDK's SHA-256 check before install is the backstop (docs/implementation-notes.md#cloudflare).
   const stored = apk.checksums.sha256;
-  if (stored && bytesToHex(stored) !== build.file_sha256) {
-    await env.BUILDS.delete(build.file_key);
+  if (stored && bytesToHex(stored) !== upload.file_sha256) {
+    await env.BUILDS.delete(upload.file_key);
     throw new ApiError(409, "file_checksum_mismatch", "The uploaded APK's SHA-256 doesn't match.");
   }
-  const iconKey = build.icon_key && (await env.BUILDS.head(build.icon_key)) ? build.icon_key : null;
+  const iconKey = upload.icon_key && (await env.BUILDS.head(upload.icon_key)) ? upload.icon_key : null;
 
-  await env.DB
-    .prepare("UPDATE builds SET uploaded_at = ?, icon_key = ? WHERE id = ? AND uploaded_at IS NULL")
-    .bind(ctx.now, iconKey, buildId)
-    .run();
+  // Swap in one batch: the Build takes the attempt's values and the upload row goes. A later attempt
+  // keeps the Build's ID, so its page and Stamp keep resolving (ADR 0013).
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO builds (id, ${BUILD_COLUMNS}, icon_key, uploaded_at)
+         SELECT build_id, ${BUILD_COLUMNS}, ?, ? FROM uploads WHERE build_id = ?
+         ON CONFLICT (id) DO UPDATE SET channel_id = excluded.channel_id, run_attempt = excluded.run_attempt,
+           workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
+           ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
+           commit_message = excluded.commit_message, pull_request_title = excluded.pull_request_title,
+           version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
+           signer_sha256 = excluded.signer_sha256, file_size = excluded.file_size, file_sha256 = excluded.file_sha256,
+           file_key = excluded.file_key, icon_key = excluded.icon_key, uploaded_at = excluded.uploaded_at,
+           deleted_at = NULL`,
+      )
+      .bind(iconKey, ctx.now, buildId),
+    db.prepare("DELETE FROM uploads WHERE build_id = ?").bind(buildId),
+  ]);
+  // The replaced attempt's files go only once the swap has landed.
+  if (confirmed) {
+    const replaced = [confirmed.file_key, confirmed.icon_key].filter((key): key is string => key !== null && key !== upload.file_key && key !== iconKey);
+    if (replaced.length > 0) ctx.waitUntil(env.BUILDS.delete(replaced));
+  }
   return result;
 }
