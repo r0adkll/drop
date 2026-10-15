@@ -1,9 +1,17 @@
-// Deployment-specific values (database ID, bucket name, route) are placeholders: each adopter
-// replaces them for their own Cloudflare account. Everything else comes from drop.config.json.
+// The Wrangler config for developing Drop itself, against the placeholder drop.config.json and
+// lockfile at the repository root. Its deployment-specific values (worker name, database ID, bucket
+// name) are placeholders: a deployment repository deploys with a config generated from this file
+// and its own lockfile (scripts/wrangler-config.ts).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "drop",
   "main": "src/index.ts",
+  // src/config.ts imports the deployment's config and lockfile through these. Relative paths
+  // resolve from this directory; a deployment's generated config uses absolute ones.
+  "alias": {
+    "drop-deployment/config": "../drop.config.json",
+    "drop-deployment/lock": "../drop.config.lock.json"
+  },
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
   "d1_databases": [
@@ -24,7 +32,8 @@
     // Must match r2_buckets[0].bucket_name: presigned upload URLs address the bucket by name.
     "R2_BUCKET_NAME": "drop-builds"
   },
-  // Set with `wrangler secret put`; see README.md.
+  // A deployment's setup writes these to its .dev.vars and its first deploy uploads them; see
+  // docs/design.md#deployment.
   "secrets": {
     "required": ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "GITHUB_WEBHOOK_SECRET", "GITHUB_APP_PRIVATE_KEY"]
   },

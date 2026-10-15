@@ -11,6 +11,11 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // src/config.ts imports the deployment's files through these aliases; see wrangler.jsonc.
+    "paths": {
+      "drop-deployment/config": ["../drop.config.json"],
+      "drop-deployment/lock": ["../drop.config.lock.json"]
+    }
   }
 }

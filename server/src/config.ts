@@ -1,5 +1,9 @@
-import rawConfig from "../../drop.config.json";
-import rawLock from "../../drop.config.lock.json";
+// The deployment's config and lockfile, bundled at build time through two aliases: to the
+// placeholders at the repository root while developing Drop (wrangler.jsonc, vitest.config.ts,
+// tsconfig.base.json), and to a deployment repository's files when it deploys
+// (scripts/wrangler-config.ts).
+import rawConfig from "drop-deployment/config";
+import rawLock from "drop-deployment/lock";
 
 // Mirrors drop.config.schema.json. Both files are checked by `npm run check:config` before deploy and
 // in tests, not at request time.
@@ -43,13 +47,13 @@ export interface DropConfig {
 }
 
 /**
- * drop.config.lock.json: the numeric GitHub ID of each listed Owner, written by `npm run setup`.
+ * drop.config.lock.json: the numeric GitHub ID of each listed Owner, written by setup (`./drop setup`).
  * Uploads and installations are matched against these, never names, because a renamed or deleted
  * account's name can be registered by someone else (ADR 0004).
  */
 export interface DropLock {
   owners: Record<OwnerName, number>;
-  /** The deployment's GitHub App, absent until `npm run setup` has created it. */
+  /** The deployment's GitHub App, absent until setup has created it. */
   app?: { id: number; slug: string; clientId?: string };
 }
 

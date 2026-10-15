@@ -74,6 +74,22 @@ describe("drop.config.lock.json", () => {
     expect(lockErrors(config, { owners: { "your-org": 1 }, app: { id: 0, slug: "" } })).toEqual([expect.stringContaining("app must be")]);
   });
 
+  it("needs the Cloudflare resources only to deploy", () => {
+    const config = { owners: ["your-org"] };
+    const cloudflare = { accountId: "a".repeat(32), workerName: "drop", d1DatabaseId: "db", r2Bucket: "drop-builds" };
+    expect(lockErrors(config, { owners: { "your-org": 1 } })).toEqual([]);
+    expect(lockErrors(config, { owners: { "your-org": 1 } }, { deploy: true })).toHaveLength(4);
+    // Setup records them one stage at a time.
+    expect(lockErrors(config, { owners: { "your-org": 1 }, cloudflare: { accountId: cloudflare.accountId } })).toEqual([]);
+    expect(lockErrors(config, { owners: { "your-org": 1 }, cloudflare: { accountId: cloudflare.accountId } }, { deploy: true })).toEqual([
+      expect.stringContaining("cloudflare.workerName"),
+      expect.stringContaining("cloudflare.d1DatabaseId"),
+      expect.stringContaining("cloudflare.r2Bucket"),
+    ]);
+    expect(lockErrors(config, { owners: { "your-org": 1 }, cloudflare }, { deploy: true })).toEqual([]);
+    expect(lockErrors(config, { owners: { "your-org": 1 }, cloudflare: { ...cloudflare, workerName: "Drop_Server" } })).toEqual([expect.stringContaining("not a valid Worker name")]);
+  });
+
   it("flags exceptions for repositories outside the Owners", () => {
     const config = { owners: ["your-org"], repositories: { "Your-Org/app": {}, "someone/else": {} } };
     expect(lockErrors(config, { owners: { "your-org": 1 } })).toEqual([expect.stringContaining('"someone/else" has no effect')]);
@@ -89,10 +105,11 @@ describe("resolveLock", () => {
     expect(resolved).toEqual(["newcomer"]);
   });
 
-  it("keeps the GitHub App", async () => {
+  it("keeps the GitHub App and the Cloudflare resources", async () => {
     const app = { id: 4242, slug: "drop-example" };
-    const { lock } = await resolveLock(["your-org"], { owners: { "your-org": 1 }, app }, lookup);
-    expect(lock).toEqual({ owners: { "your-org": 1 }, app });
+    const cloudflare = { accountId: "a".repeat(32), workerName: "drop" };
+    const { lock } = await resolveLock(["your-org"], { owners: { "your-org": 1 }, app, cloudflare }, lookup);
+    expect(lock).toEqual({ owners: { "your-org": 1 }, app, cloudflare });
   });
 
   it("looks every Owner up again on refresh", async () => {

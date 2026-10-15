@@ -40,7 +40,7 @@ export function installationAllowedRepositories(db: D1Database, allowList: Allow
         return {
           allowed: false,
           code: "owner_not_listed",
-          reason: `${owner} is not one of this deployment's Owners. To accept its uploads, add it to owners in drop.config.json, run \`npm run setup\`, and redeploy.`,
+          reason: `${owner} is not one of this deployment's Owners. To accept its uploads, add it to owners in drop.config.json, run \`./drop setup\`, and redeploy.`,
         };
       }
       const installation = await db

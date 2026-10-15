@@ -19,6 +19,14 @@ export default defineConfig(async () => {
               },
             }),
           ],
+          // Tests always run against the placeholder config at the repository root, whatever
+          // DROP_DEPLOYMENT_DIR says.
+          resolve: {
+            alias: {
+              "drop-deployment/config": new URL("../drop.config.json", import.meta.url).pathname,
+              "drop-deployment/lock": new URL("../drop.config.lock.json", import.meta.url).pathname,
+            },
+          },
           test: {
             name: "worker",
             include: ["test/worker/**/*.test.ts"],

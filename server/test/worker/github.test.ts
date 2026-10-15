@@ -224,7 +224,7 @@ describe("runScheduled", () => {
   });
 
   it("explains a missing App", async () => {
-    await expect(runScheduled({ ...(await baseDependencies()), github: () => undefined }, env)).rejects.toThrow(/npm run setup/);
+    await expect(runScheduled({ ...(await baseDependencies()), github: () => undefined }, env)).rejects.toThrow(/drop setup/);
   });
 });
 

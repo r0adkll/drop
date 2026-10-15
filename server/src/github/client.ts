@@ -11,7 +11,7 @@ const JWT_LIFETIME_SECONDS = 9 * 60;
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 const PER_PAGE = 100;
 
-export const NO_APP = "drop.config.lock.json has no GitHub App; run `npm run setup` in server/ to create it.";
+export const NO_APP = "drop.config.lock.json has no GitHub App; run `./drop setup` in the deployment repository to create it.";
 
 export class GitHubError extends Error {
   constructor(

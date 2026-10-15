@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "npm run check:config && wrangler deploy",
-    "deploy:secrets": "npm run check:config && wrangler deploy --secrets-file .dev.vars",
+    "dev:deployment": "node scripts/deployment.ts dev",
+    "deploy": "node scripts/deployment.ts deploy",
     "setup": "node scripts/setup.ts",
     "generate": "openapi-typescript openapi.yaml -o src/generated/openapi.ts",
     "check:generated": "openapi-typescript openapi.yaml -o src/generated/openapi.ts --check",
@@ -31,5 +31,8 @@
     "typescript": "5.9.3",
     "vitest": "5.0.5",
     "wrangler": "4.151.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
