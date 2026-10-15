@@ -17,11 +17,27 @@ Every user-facing surface (the Build page and its expired state, the pull reques
 Update sheet, the Slack and Discord messages) goes through a design iteration and is agreed before
 it is implemented.
 
+## Repository layout
+
+One repository ([ADR 0008](adr/0008-typescript-server-openapi-contract.md)):
+
+```
+server/          TypeScript Worker (Hono), D1 migrations, the OpenAPI document
+action/          composite GitHub Action (aapt2 + apksigner)
+android/         Gradle build: SDK modules (KMP, Android target) and samples
+android/plugin/  Gradle plugin, as an included build
+docs/            design notes and ADRs
+```
+
+The Kotlin API client is generated from the OpenAPI document in `server/`; edit the document, not
+the generated client.
+
 ## Gradle plugin
 
 - Adds the SDK to the variants it is enabled for and the no-op SDK to the rest, so
   `REQUEST_INSTALL_PACKAGES` never reaches a store build.
-- Generates the SDK's configuration (server URL, Product) from the `drop {}` block.
+- Generates the SDK's configuration (the server URL) from the `drop {}` block. The Product needs no
+  setting: it is the app's own application ID ([ADR 0015](adr/0015-product-identity.md)).
 - Stamps the Product, Channel and GitHub run ID from the CI environment into the APK
   ([ADR 0013](adr/0013-stamped-build-identity.md)).
 - Optionally derives the version code from the commit count. Off by default; Drop does not depend
@@ -121,7 +137,7 @@ are credentials and the deployment repository may be public. Milestone 1 sends n
 
 ## Releases
 
-The SDK is published to Maven Central under `com.r0adkll.drop`, the Gradle plugin to the Gradle
+The SDK is published to Maven Central under `com.r0adkll.drop` with gradle-maven-publish-plugin, the Gradle plugin to the Gradle
 Plugin Portal as `com.r0adkll.drop`, and the Action is used from the repository path
 (`r0adkll/drop/action@v1`). All three share one version and are released together; adopters deploy
 the server themselves from the template.
