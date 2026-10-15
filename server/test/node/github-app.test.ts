@@ -142,10 +142,10 @@ describe("pushing secrets to the Worker", () => {
 
   it("bulk-uploads them through stdin when the Worker exists", () => {
     const { calls, run } = recorder(0);
-    expect(pushSecrets(run, appSecrets(created))).toBe("pushed");
+    expect(pushSecrets(run, appSecrets(created), "drop")).toBe("pushed");
     expect(calls.map((call) => call.args)).toEqual([
-      ["--no-install", "wrangler", "secret", "list"],
-      ["--no-install", "wrangler", "secret", "bulk"],
+      ["--no-install", "wrangler", "secret", "list", "--name", "drop"],
+      ["--no-install", "wrangler", "secret", "bulk", "--name", "drop"],
     ]);
     expect(JSON.parse(calls[1]!.input!)).toEqual(appSecrets(created));
     expect(calls[1]!.args.join(" ")).not.toContain("hook-secret");
@@ -153,12 +153,12 @@ describe("pushing secrets to the Worker", () => {
 
   it("leaves them for the first deploy when the Worker doesn't exist", () => {
     const { calls, run } = recorder(1, "✘ [ERROR] A request to the Cloudflare API failed. This Worker does not exist on your account. [code: 10007]");
-    expect(pushSecrets(run, appSecrets(created))).toBe("not-deployed");
+    expect(pushSecrets(run, appSecrets(created), "drop")).toBe("not-deployed");
     expect(calls).toHaveLength(1);
   });
 
   it("fails clearly on other errors", () => {
-    expect(() => pushSecrets(recorder(1, "Not logged in").run, appSecrets(created))).toThrow(/wrangler login/);
-    expect(() => pushSecrets(recorder(0, "", 1).run, appSecrets(created))).toThrow(/bulk failed/);
+    expect(() => pushSecrets(recorder(1, "Not logged in").run, appSecrets(created), "drop")).toThrow(/wrangler login/);
+    expect(() => pushSecrets(recorder(0, "", 1).run, appSecrets(created), "drop")).toThrow(/bulk failed/);
   });
 });

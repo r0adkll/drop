@@ -1,22 +1,20 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import {
-  appIsPublic, appManifest, appSecrets, convertManifestCode, pushSecrets, readDevVars, runManifestFlow, setupAccount,
-  upsertDevVars, type ProcessRunner,
-} from "./github-app.ts";
-import { githubOwnerLookup, resolveLock, type LockFile } from "./lock.ts";
+import { pushSecrets, readDevVars, runManifestFlow, upsertDevVars, type ProcessRunner } from "./github-app.ts";
+import type { LockFile } from "./lock.ts";
+import { deploymentPaths, SERVER_DIR } from "./paths.ts";
+import { terminalPrompts } from "./prompts.ts";
+import { runSetup, WORKER_SECRETS, type SetupContext, type SetupFiles } from "./setup-stages.ts";
 
-// Sets a deployment up (ADR 0004, ADR 0010):
-// 1. records each Owner's numeric GitHub ID in ../drop.config.lock.json;
-// 2. creates the deployment's GitHub App through GitHub's manifest flow, unless the lockfile already
-//    has one, writes its secrets to .dev.vars and, if the Worker is deployed, to the Worker.
+// Sets a deployment up, stage by stage (docs/design.md#deployment, ADR 0004, ADR 0010): the
+// Cloudflare account, D1 database, R2 bucket and token, Owner IDs, the GitHub App, the first deploy
+// and CI's credentials. Every stage skips work that is already done, so it is safe to run again.
+// A deployment repository runs it as `./drop setup`, which sets DROP_DEPLOYMENT_DIR.
 //
-// Usage: npm run setup [-- --refresh] [--skip-app] [--recreate-app] [--app-name "<name>"] [--push-secrets]
+// Usage: ./drop setup [--refresh] [--skip-app] [--recreate-app] [--app-name "<name>"]
+//                     [--worker-name <name>] [--push-secrets]
 
-const configPath = new URL("../../drop.config.json", import.meta.url);
-const lockPath = new URL("../../drop.config.lock.json", import.meta.url);
-const devVarsPath = new URL("../.dev.vars", import.meta.url);
-const LOCK_COMMENT = "Written by `npm run setup` in server/: the numeric GitHub ID of each Owner in drop.config.json, and the deployment's GitHub App. Check it in.";
+const LOCK_COMMENT = "Written by `./drop setup`: the numeric GitHub ID of each Owner in drop.config.json, the deployment's GitHub App and its Cloudflare resources. Check it in.";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -24,6 +22,8 @@ const option = (name: string) => {
   const index = args.indexOf(name);
   return index === -1 ? undefined : args[index + 1];
 };
+
+const paths = deploymentPaths();
 
 function githubToken(): string | undefined {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
@@ -34,88 +34,77 @@ function githubToken(): string | undefined {
   }
 }
 
-const runProcess: ProcessRunner = (command, commandArgs, input) => {
-  const result = spawnSync(command, commandArgs, { input, encoding: "utf8", cwd: new URL("..", import.meta.url) });
+const run: ProcessRunner = (command, commandArgs, input, env) => {
+  const result = spawnSync(command, commandArgs, { input, encoding: "utf8", cwd: SERVER_DIR, env: { ...process.env, ...env } });
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 };
+
+function runAttached(command: string, commandArgs: string[], env?: Record<string, string>): number {
+  return spawnSync(command, commandArgs, { stdio: "inherit", cwd: SERVER_DIR, env: { ...process.env, ...env } }).status ?? 1;
+}
 
 function openBrowser(url: string): void {
   const [command, commandArgs] =
     process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
   spawn(command, commandArgs, { stdio: "ignore", detached: true }).on("error", () => {}).unref();
+  console.log(`  ↗ ${url}`);
 }
 
-const writeLock = (lock: LockFile) => writeFileSync(lockPath, `${JSON.stringify({ $comment: LOCK_COMMENT, ...lock }, null, 2)}\n`);
-const readDevVarsFile = () => (existsSync(devVarsPath) ? readFileSync(devVarsPath, "utf8") : "");
+const readText = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : "");
 
-function reportPush(result: "pushed" | "not-deployed"): void {
-  if (result === "pushed") {
-    console.log("Stored the App's secrets on the deployed Worker.");
-  } else {
-    console.log("The Worker isn't deployed yet. Its first deploy carries the secrets from .dev.vars:");
-    console.log("  npm run deploy:secrets");
-  }
+function files(): SetupFiles {
+  if (!existsSync(paths.config)) throw new Error(`${paths.config} doesn't exist. Run setup from a deployment repository (\`./drop setup\`).`);
+  const config = JSON.parse(readFileSync(paths.config, "utf8")) as { url?: string; owners?: string[] };
+  if (!Array.isArray(config.owners) || typeof config.url !== "string") throw new Error("drop.config.json needs url and owners.");
+  return {
+    deploymentDir: paths.dir,
+    devVarsPath: paths.devVars,
+    config: { url: config.url, owners: config.owners },
+    readLock: () => (existsSync(paths.lock) ? (JSON.parse(readFileSync(paths.lock, "utf8")) as LockFile) : undefined),
+    writeLock: (lock) => {
+      const { $comment: _comment, ...rest } = lock as LockFile & { $comment?: string };
+      writeFileSync(paths.lock, `${JSON.stringify({ $comment: LOCK_COMMENT, ...rest }, null, 2)}\n`);
+    },
+    readDevVars: () => readDevVars(readText(paths.devVars)),
+    writeDevVars: (values) => writeFileSync(paths.devVars, upsertDevVars(readText(paths.devVars), values)),
+  };
 }
 
 async function main(): Promise<void> {
-  const config = JSON.parse(readFileSync(configPath, "utf8")) as { url?: string; owners?: string[] };
-  if (!Array.isArray(config.owners) || typeof config.url !== "string") throw new Error("drop.config.json needs url and owners.");
+  const setupFiles = files();
 
   if (flag("--push-secrets")) {
-    const devVars = readDevVars(readDevVarsFile());
-    const secrets = Object.fromEntries(
-      ["GITHUB_APP_PRIVATE_KEY", "GITHUB_WEBHOOK_SECRET", "GITHUB_APP_CLIENT_SECRET"].filter((key) => devVars[key]).map((key) => [key, devVars[key]!]),
-    );
-    if (Object.keys(secrets).length === 0) throw new Error(".dev.vars has no GitHub App secrets; run `npm run setup` first.");
-    reportPush(pushSecrets(runProcess, secrets));
+    const workerName = setupFiles.readLock()?.cloudflare?.workerName;
+    if (!workerName) throw new Error("drop.config.lock.json has no Worker yet; run `./drop setup` first.");
+    const vars = setupFiles.readDevVars();
+    const secrets = Object.fromEntries(WORKER_SECRETS.filter((key) => vars[key]).map((key) => [key, vars[key]!]));
+    if (Object.keys(secrets).length === 0) throw new Error(".dev.vars has no secrets; run `./drop setup` first.");
+    const accountId = setupFiles.readLock()?.cloudflare?.accountId;
+    const result = pushSecrets(run, secrets, workerName, accountId ? { CLOUDFLARE_ACCOUNT_ID: accountId } : undefined);
+    console.log(result === "pushed" ? `Stored ${Object.keys(secrets).length} secrets on ${workerName}.` : `${workerName} isn't deployed yet; deploy it the first time with \`./drop deploy --secrets\`.`);
     return;
   }
 
-  // 1. Owners.
-  const token = githubToken();
-  const existing = existsSync(lockPath) ? (JSON.parse(readFileSync(lockPath, "utf8")) as LockFile) : undefined;
-  const { lock, resolved } = await resolveLock(config.owners, existing, githubOwnerLookup(token), flag("--refresh"));
-  writeLock(lock);
-  for (const owner of resolved) console.log(`Locked ${owner} as ${lock.owners[owner]}.`);
-  const dropped = Object.keys(existing?.owners ?? {}).filter((owner) => !(owner in lock.owners));
-  for (const owner of dropped) console.log(`Removed ${owner}, which is no longer an Owner.`);
-  if (resolved.length === 0 && dropped.length === 0) console.log("Owners in drop.config.lock.json are up to date.");
-
-  // 2. The GitHub App.
-  if (flag("--skip-app")) return;
-  if (lock.app && !flag("--recreate-app")) {
-    console.log(`The GitHub App ${lock.app.slug} already exists. Install it from https://github.com/apps/${lock.app.slug}/installations/new`);
-    return;
-  }
-  if (lock.app) {
-    console.warn(`Creating a new App replaces ${lock.app.slug} in the lockfile. GitHub keeps the old one: delete it at https://github.com/settings/apps/${lock.app.slug}/advanced`);
-  }
-  if (!token) throw new Error("Creating the GitHub App needs your GitHub account: set GITHUB_TOKEN or run `gh auth login`.");
-
-  const account = await setupAccount(token);
-  const isPublic = appIsPublic(Object.values(lock.owners), account.id);
-  console.log(`Creating the GitHub App under ${account.login}, as a ${isPublic ? "public App so every Owner can install it" : "private App, since you are the only Owner"}.`);
-  const code = await runManifestFlow({
-    buildManifest: (redirectUrl) => appManifest({ deploymentUrl: config.url!, redirectUrl, isPublic, name: option("--app-name") }),
-    openBrowser,
-    log: (line) => console.log(line),
-  });
-  const app = await convertManifestCode(code);
-
-  writeFileSync(devVarsPath, upsertDevVars(readDevVarsFile(), appSecrets(app)));
-  writeLock({ ...lock, app: { id: app.id, slug: app.slug, clientId: app.client_id } });
-  console.log(`Created ${app.name} (${app.html_url}). Its ID and slug are in drop.config.lock.json; its secrets are in server/.dev.vars.`);
-  reportPush(pushSecrets(runProcess, appSecrets(app)));
-
-  const install = `https://github.com/apps/${app.slug}/installations/new`;
-  console.log(`\nInstall the App on the repositories that should upload: ${install}`);
-  if (isPublic) console.log("Every other Owner installs it from the same link.");
-  console.log("Then commit drop.config.lock.json and deploy.");
+  const ctx: SetupContext = {
+    io: { run, runAttached, fetch, prompts: terminalPrompts, openBrowser, log: (line) => console.log(line), githubToken, runManifestFlow },
+    files: setupFiles,
+    options: {
+      refresh: flag("--refresh"),
+      skipApp: flag("--skip-app"),
+      recreateApp: flag("--recreate-app"),
+      appName: option("--app-name"),
+      workerName: option("--worker-name"),
+    },
+    secretsChanged: false,
+    deferred: [],
+  };
+  console.log(`Setting up the Drop deployment in ${paths.dir}`);
+  await runSetup(ctx);
 }
 
 try {
   await main();
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(`\n✘ ${error instanceof Error ? error.message : error}`);
   process.exit(1);
 }

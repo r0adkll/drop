@@ -138,7 +138,7 @@ export async function runManifestFlow(options: {
 
   try {
     return await new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("Timed out waiting for GitHub. Run `npm run setup` again.")), options.timeoutMs ?? 10 * 60_000);
+      const timer = setTimeout(() => reject(new Error("Timed out waiting for GitHub. Run `./drop setup` again.")), options.timeoutMs ?? 10 * 60_000);
       server.on("request", (request, response) => {
         const url = new URL(request.url ?? "/", origin);
         if (url.pathname === "/") {
@@ -214,22 +214,29 @@ export interface ProcessResult {
   stdout: string;
   stderr: string;
 }
-export type ProcessRunner = (command: string, args: string[], input?: string) => ProcessResult;
+/** Runs a command with its output captured; `env` adds to the inherited environment. */
+export type ProcessRunner = (command: string, args: string[], input?: string, env?: Record<string, string>) => ProcessResult;
+
+/**
+ * Whether the deployment's Worker exists yet. Cloudflare answers 10007 (script not found) for a
+ * Worker that has never been deployed.
+ */
+export function workerExists(run: ProcessRunner, workerName: string, env?: Record<string, string>): boolean {
+  const probe = run("npx", ["--no-install", "wrangler", "secret", "list", "--name", workerName], undefined, env);
+  if (probe.status === 0) return true;
+  const output = `${probe.stderr}\n${probe.stdout}`;
+  if (/10007|not found|does not exist/i.test(output)) return false;
+  throw new Error(`wrangler secret list failed; is wrangler signed in (npx wrangler login)?\n${output.trim()}`);
+}
 
 /**
  * Puts secrets on the deployed Worker in one `wrangler secret bulk` call, reading JSON from stdin so
  * they never appear in arguments or output. Returns "not-deployed" when the Worker doesn't exist
- * yet: its first deploy then carries them with `--secrets-file` (`npm run deploy:secrets`).
+ * yet: its first deploy then carries them with `--secrets-file` (`./drop deploy --secrets`).
  */
-export function pushSecrets(run: ProcessRunner, secrets: Record<string, string>): "pushed" | "not-deployed" {
-  const probe = run("npx", ["--no-install", "wrangler", "secret", "list"]);
-  if (probe.status !== 0) {
-    const output = `${probe.stderr}\n${probe.stdout}`;
-    // Cloudflare answers 10007 (script not found) for a Worker that has never been deployed.
-    if (/10007|not found|does not exist/i.test(output)) return "not-deployed";
-    throw new Error(`wrangler secret list failed; is wrangler signed in (npx wrangler login)?\n${output.trim()}`);
-  }
-  const bulk = run("npx", ["--no-install", "wrangler", "secret", "bulk"], JSON.stringify(secrets));
+export function pushSecrets(run: ProcessRunner, secrets: Record<string, string>, workerName: string, env?: Record<string, string>): "pushed" | "not-deployed" {
+  if (!workerExists(run, workerName, env)) return "not-deployed";
+  const bulk = run("npx", ["--no-install", "wrangler", "secret", "bulk", "--name", workerName], JSON.stringify(secrets), env);
   if (bulk.status !== 0) throw new Error(`wrangler secret bulk failed:\n${bulk.stderr || bulk.stdout}`);
   return "pushed";
 }
