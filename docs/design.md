@@ -128,7 +128,8 @@ these rules.
   (no Build on the Channel, or the Product has no default Channel), it says so in a sentence.
 - Milestone 1 serves Public products only: a Build of a Private product gets a page saying it needs
   sign-in, which reveals nothing about the Build, and an unknown ID gets a not-found page. Both are
-  minimal placeholders that still need a design pass (AGENTS.md, *Design before UI*).
+  a heading and one sentence in the Build page's style, agreed as written; the sign-in page gets its
+  own design with milestone 2.
 
 ## SDK
 
