@@ -1,0 +1,5 @@
+Signer #1 certificate DN: CN=Drop Internal, OU=Mobile, O=Example, C=US
+Signer #1 certificate SHA-256 digest: 3a9fc2417bd1e8a06f4c2259e0d7b31aa45c6e9082f17d3b5e08c4aa5de1e107
+Signer #1 certificate SHA-1 digest: 5c2b8e1d0f3a7964b1c2e3d4f5a6b7c8d9e0f1a2
+Signer #1 certificate MD5 digest: 0f1e2d3c4b5a69788796a5b4c3d2e1f0
+WARNING: META-INF/com/android/build/gradle/app-metadata.properties not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.

@@ -11,10 +11,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "typegen": "wrangler types",
-    "check:typegen": "wrangler types --check"
+    "check:typegen": "wrangler types --check",
+    "smoke:r2-checksum": "node scripts/smoke-r2-checksum.ts"
   },
   "dependencies": {
-    "hono": "4.13.13"
+    "aws4fetch": "1.0.20",
+    "hono": "4.13.13",
+    "jose": "6.2.12"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.3",

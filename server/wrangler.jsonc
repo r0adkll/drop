@@ -20,6 +20,14 @@
       "bucket_name": "drop-builds"
     }
   ],
+  "vars": {
+    // Must match r2_buckets[0].bucket_name: presigned upload URLs address the bucket by name.
+    "R2_BUCKET_NAME": "drop-builds"
+  },
+  // Set with `wrangler secret put`; see README.md.
+  "secrets": {
+    "required": ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"]
+  },
   "triggers": {
     // Retention runs hourly; see docs/design.md#retention.
     "crons": ["0 * * * *"]

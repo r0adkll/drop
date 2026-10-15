@@ -1,0 +1,4 @@
+Signer #1 certificate DN: CN=Old
+Signer #1 certificate SHA-256 digest: 3a9fc2417bd1e8a06f4c2259e0d7b31aa45c6e9082f17d3b5e08c4aa5de1e107
+Signer #2 certificate DN: CN=Other
+Signer #2 certificate SHA-256 digest: 1111111111111111111111111111111111111111111111111111111111111111

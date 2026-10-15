@@ -21,7 +21,65 @@ paths:
                 $ref: "#/components/schemas/Health"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/uploads:
+    post:
+      operationId: createUpload
+      summary: Starts uploading a Build.
+      description: >
+        Creates the Build as pending and returns presigned URLs to `PUT` its files to directly. The
+        Build is offered nowhere until `completeUpload` confirms the files. A run uploads at most one
+        Build per Product: a pending Build of the same run is replaced, and a confirmed one is
+        replaced only by a later run attempt, which keeps its ID (ADR 0013).
+      security:
+        - githubOidc: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUploadRequest"
+      responses:
+        "201":
+          description: The Build is pending; upload its files to the returned URLs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUploadResponse"
+        default:
+          $ref: "#/components/responses/Error"
+  /api/v1/uploads/{buildId}/complete:
+    post:
+      operationId: completeUpload
+      summary: Confirms a Build's files and makes it available.
+      description: >
+        Checks the uploaded APK's size, and its SHA-256 when storage reports one, then marks the Build
+        uploaded. Must be called with a token from the same run attempt that created the upload.
+        Completing an already confirmed Build succeeds without changing it.
+      security:
+        - githubOidc: []
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+      responses:
+        "200":
+          description: The Build is uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedBuild"
+        default:
+          $ref: "#/components/responses/Error"
 components:
+  securitySchemes:
+    githubOidc:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        A GitHub Actions OIDC token whose audience is the deployment's URL.
   responses:
     Error:
       description: The request failed.
@@ -44,8 +102,171 @@ components:
       required: [code, message]
       properties:
         code:
-          description: A stable, machine-readable reason, such as `not_found`.
-          type: string
+          $ref: "#/components/schemas/ErrorCode"
         message:
           description: A human-readable explanation. Not stable; do not match on it.
           type: string
+    ErrorCode:
+      description: >
+        A stable, machine-readable reason. New codes may be added; clients treat an unknown code as
+        a generic failure.
+      type: string
+      enum:
+        - not_found
+        - internal
+        - invalid_request
+        - token_missing
+        - token_invalid
+        - allow_list_not_configured
+        - repository_not_allowed
+        - event_not_allowed
+        - product_bound_to_other_repository
+        - channel_invalid
+        - channel_ref_mismatch
+        - channel_ended
+        - default_branch_ref_invalid
+        - build_exists_for_run
+        - build_not_found
+        - build_run_mismatch
+        - file_missing
+        - file_size_mismatch
+        - file_checksum_mismatch
+    BuildId:
+      description: 8 random base62 characters.
+      type: string
+      pattern: "^[0-9A-Za-z]{8}$"
+    Sha256:
+      description: A SHA-256 digest in lowercase hex.
+      type: string
+      pattern: "^[0-9a-f]{64}$"
+    CreateUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [applicationId, versionCode, signerSha256, apk, channel, defaultBranch, commit]
+      properties:
+        applicationId:
+          description: The APK's package name, which is the Product (ADR 0015).
+          type: string
+          maxLength: 255
+          pattern: "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+        versionCode:
+          type: integer
+          minimum: 1
+          maximum: 2100000000
+        versionName:
+          type: string
+          maxLength: 100
+        label:
+          description: The APK's application label.
+          type: string
+          maxLength: 200
+        signerSha256:
+          description: The SHA-256 digest of the APK's signing certificate (ADR 0006).
+          allOf:
+            - $ref: "#/components/schemas/Sha256"
+        apk:
+          $ref: "#/components/schemas/FileDescriptor"
+        icon:
+          $ref: "#/components/schemas/IconDescriptor"
+        channel:
+          description: >
+            The Channel to upload to. `pr/<number>` is a Pull request channel and must come from a
+            run of that pull request.
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+        defaultBranch:
+          description: >
+            Whether the run is on the repository's default branch, making `channel` the Product's
+            default Channel.
+          type: boolean
+        commit:
+          $ref: "#/components/schemas/CommitInfo"
+        pullRequestTitle:
+          type: string
+          maxLength: 1000
+    FileDescriptor:
+      type: object
+      additionalProperties: false
+      required: [size, sha256]
+      properties:
+        size:
+          description: Size in bytes.
+          type: integer
+          minimum: 1
+          maximum: 5000000000
+        sha256:
+          $ref: "#/components/schemas/Sha256"
+    IconDescriptor:
+      type: object
+      additionalProperties: false
+      required: [size, sha256, contentType]
+      properties:
+        size:
+          type: integer
+          minimum: 1
+          maximum: 1048576
+        sha256:
+          $ref: "#/components/schemas/Sha256"
+        contentType:
+          type: string
+          enum: [image/png, image/webp]
+    CommitInfo:
+      type: object
+      additionalProperties: false
+      required: [sha]
+      properties:
+        sha:
+          description: >
+            The commit to show: the pull request's head commit on `pull_request` runs, otherwise the
+            commit that was built.
+          type: string
+          pattern: "^[0-9a-f]{40}$"
+        message:
+          type: string
+          maxLength: 10000
+    PresignedUpload:
+      type: object
+      additionalProperties: false
+      required: [url, method, headers]
+      properties:
+        url:
+          type: string
+          format: uri
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          description: Headers the `PUT` must send exactly, because they are part of the signature.
+          type: object
+          additionalProperties:
+            type: string
+    CreateUploadResponse:
+      type: object
+      additionalProperties: false
+      required: [buildId, buildUrl, expiresAt, apk]
+      properties:
+        buildId:
+          $ref: "#/components/schemas/BuildId"
+        buildUrl:
+          description: The Build page.
+          type: string
+          format: uri
+        expiresAt:
+          description: When the presigned URLs stop working.
+          type: string
+          format: date-time
+        apk:
+          $ref: "#/components/schemas/PresignedUpload"
+        icon:
+          $ref: "#/components/schemas/PresignedUpload"
+    UploadedBuild:
+      type: object
+      additionalProperties: false
+      required: [buildId, buildUrl]
+      properties:
+        buildId:
+          $ref: "#/components/schemas/BuildId"
+        buildUrl:
+          type: string
+          format: uri

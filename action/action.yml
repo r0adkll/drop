@@ -1,0 +1,31 @@
+name: Drop
+description: Upload an Android Build to a Drop deployment.
+author: r0adkll
+branding:
+  icon: download-cloud
+  color: green
+inputs:
+  server:
+    description: The Drop deployment's URL, such as https://drop.example.com.
+    required: true
+  apk:
+    description: Path to the signed APK to upload.
+    required: true
+  channel:
+    description: >
+      The Channel to upload to. Defaults to `main` for runs on the default branch and `pr/<number>`
+      for pull requests; any other run must set it.
+    required: false
+  icon:
+    description: >
+      A PNG or WebP icon to show for the Build, for apps whose launcher icon exists only as
+      adaptive-icon XML. Defaults to the largest bitmap icon in the APK.
+    required: false
+outputs:
+  build-id:
+    description: The uploaded Build's ID.
+  build-url:
+    description: The uploaded Build's page.
+runs:
+  using: node24
+  main: dist/index.mjs

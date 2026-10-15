@@ -1,0 +1,21 @@
+{
+  "name": "drop-action",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs --legal-comments=none --banner:js=\"import { createRequire as dropCreateRequire } from 'node:module'; const require = dropCreateRequire(import.meta.url);\"",
+    "check:dist": "npm run build && git diff --exit-code -- dist && test -z \"$(git status --porcelain -- dist)\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@actions/core": "3.0.1",
+    "fflate": "0.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}

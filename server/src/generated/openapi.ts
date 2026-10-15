@@ -21,6 +21,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Starts uploading a Build.
+         * @description Creates the Build as pending and returns presigned URLs to `PUT` its files to directly. The Build is offered nowhere until `completeUpload` confirms the files. A run uploads at most one Build per Product: a pending Build of the same run is replaced, and a confirmed one is replaced only by a later run attempt, which keeps its ID (ADR 0013).
+         */
+        post: operations["createUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/uploads/{buildId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirms a Build's files and makes it available.
+         * @description Checks the uploaded APK's size, and its SHA-256 when storage reports one, then marks the Build uploaded. Must be called with a token from the same run attempt that created the upload. Completing an already confirmed Build succeeds without changing it.
+         */
+        post: operations["completeUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -30,10 +70,82 @@ export interface components {
             status: "ok";
         };
         Error: {
-            /** @description A stable, machine-readable reason, such as `not_found`. */
-            code: string;
+            code: components["schemas"]["ErrorCode"];
             /** @description A human-readable explanation. Not stable; do not match on it. */
             message: string;
+        };
+        /**
+         * @description A stable, machine-readable reason. New codes may be added; clients treat an unknown code as a generic failure.
+         * @enum {string}
+         */
+        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "allow_list_not_configured" | "repository_not_allowed" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch";
+        /** @description 8 random base62 characters. */
+        BuildId: string;
+        /** @description A SHA-256 digest in lowercase hex. */
+        Sha256: string;
+        CreateUploadRequest: {
+            /** @description The APK's package name, which is the Product (ADR 0015). */
+            applicationId: string;
+            versionCode: number;
+            versionName?: string;
+            /** @description The APK's application label. */
+            label?: string;
+            /** @description The SHA-256 digest of the APK's signing certificate (ADR 0006). */
+            signerSha256: components["schemas"]["Sha256"];
+            apk: components["schemas"]["FileDescriptor"];
+            icon?: components["schemas"]["IconDescriptor"];
+            /** @description The Channel to upload to. `pr/<number>` is a Pull request channel and must come from a run of that pull request. */
+            channel: string;
+            /** @description Whether the run is on the repository's default branch, making `channel` the Product's default Channel. */
+            defaultBranch: boolean;
+            commit: components["schemas"]["CommitInfo"];
+            pullRequestTitle?: string;
+        };
+        FileDescriptor: {
+            /** @description Size in bytes. */
+            size: number;
+            sha256: components["schemas"]["Sha256"];
+        };
+        IconDescriptor: {
+            size: number;
+            sha256: components["schemas"]["Sha256"];
+            /** @enum {string} */
+            contentType: "image/png" | "image/webp";
+        };
+        CommitInfo: {
+            /** @description The commit to show: the pull request's head commit on `pull_request` runs, otherwise the commit that was built. */
+            sha: string;
+            message?: string;
+        };
+        PresignedUpload: {
+            /** Format: uri */
+            url: string;
+            /** @enum {string} */
+            method: "PUT";
+            /** @description Headers the `PUT` must send exactly, because they are part of the signature. */
+            headers: {
+                [key: string]: string;
+            };
+        };
+        CreateUploadResponse: {
+            buildId: components["schemas"]["BuildId"];
+            /**
+             * Format: uri
+             * @description The Build page.
+             */
+            buildUrl: string;
+            /**
+             * Format: date-time
+             * @description When the presigned URLs stop working.
+             */
+            expiresAt: string;
+            apk: components["schemas"]["PresignedUpload"];
+            icon?: components["schemas"]["PresignedUpload"];
+        };
+        UploadedBuild: {
+            buildId: components["schemas"]["BuildId"];
+            /** Format: uri */
+            buildUrl: string;
         };
     };
     responses: {
@@ -70,6 +182,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description The Build is pending; upload its files to the returned URLs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateUploadResponse"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    completeUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                buildId: components["schemas"]["BuildId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Build is uploaded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadedBuild"];
                 };
             };
             default: components["responses"]["Error"];
