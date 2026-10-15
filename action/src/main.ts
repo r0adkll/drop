@@ -4,6 +4,7 @@ import { createReadStream, openAsBlob, readFileSync, statSync } from "node:fs";
 import * as core from "@actions/core";
 import { unzipSync } from "fflate";
 import { findBuildTools, parseBadging, parseSignerDigest, pickIcon } from "./apk-tools.ts";
+import { readCommitMessage } from "./git.ts";
 import { chooseChannel, commitDetails, type EventPayload, type RunContext } from "./run-context.ts";
 import { upload, type CreateUploadRequest } from "./upload.ts";
 
@@ -85,16 +86,16 @@ function readRunContext(): RunContext {
 }
 
 function gitMessage(sha: string): string | undefined {
-  try {
-    return execFileSync("git", ["log", "-1", "--format=%B", sha], {
-      cwd: process.env.GITHUB_WORKSPACE,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-  } catch {
-    // No checkout, or a shallow one without this commit.
-    return undefined;
-  }
+  return readCommitMessage(
+    (args, timeoutMs) =>
+      execFileSync("git", args, {
+        cwd: process.env.GITHUB_WORKSPACE,
+        encoding: "utf8",
+        timeout: timeoutMs,
+        stdio: ["ignore", "pipe", "ignore"],
+      }),
+    sha,
+  );
 }
 
 function readIcon(apkPath: string, iconInput: string | undefined, icons: ReturnType<typeof parseBadging>["icons"]) {

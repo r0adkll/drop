@@ -39,6 +39,9 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - On `pull_request` runs `sha` (like `GITHUB_SHA`) is the temporary merge commit, not the commit the
   author pushed. The Action sends `pull_request.head.sha` from the event payload for display, along
   with the pull request title and the head commit message; the token carries none of these.
+- The `pull_request` payload has no commit messages, and the default shallow checkout of the merge
+  commit lacks the head commit, so the Action fetches it alone (`git fetch --depth=1 origin <sha>`)
+  before `git log -1`. GitHub serves fetches of any reachable commit by SHA.
 - Pull requests from forks never receive `id-token: write`. `pull_request_target` and
   `workflow_run` do, while handling fork content, which is why Drop rejects them by default.
 

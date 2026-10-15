@@ -21046,6 +21046,25 @@ function compareVersionsDescending(a, b) {
   return y.pre.localeCompare(x2.pre);
 }
 
+// src/git.ts
+var LOCAL_TIMEOUT_MS = 5e3;
+var FETCH_TIMEOUT_MS = 2e4;
+function readCommitMessage(git, sha) {
+  try {
+    git(["cat-file", "-e", `${sha}^{commit}`], LOCAL_TIMEOUT_MS);
+  } catch {
+    try {
+      git(["fetch", "--no-tags", "--depth=1", "origin", sha], FETCH_TIMEOUT_MS);
+    } catch {
+    }
+  }
+  try {
+    return git(["log", "-1", "--format=%B", sha], LOCAL_TIMEOUT_MS);
+  } catch {
+    return void 0;
+  }
+}
+
 // src/run-context.ts
 var DEFAULT_CHANNEL = "main";
 function chooseChannel(run2, input) {
@@ -21183,15 +21202,15 @@ function readRunContext() {
   };
 }
 function gitMessage(sha) {
-  try {
-    return execFileSync("git", ["log", "-1", "--format=%B", sha], {
+  return readCommitMessage(
+    (args, timeoutMs) => execFileSync("git", args, {
       cwd: process.env.GITHUB_WORKSPACE,
       encoding: "utf8",
+      timeout: timeoutMs,
       stdio: ["ignore", "pipe", "ignore"]
-    });
-  } catch {
-    return void 0;
-  }
+    }),
+    sha
+  );
 }
 function readIcon(apkPath, iconInput, icons) {
   let icon;
