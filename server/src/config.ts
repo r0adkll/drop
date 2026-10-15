@@ -55,3 +55,8 @@ export interface DropLock {
 
 export const config = rawConfig as DropConfig;
 export const lock = rawLock as DropLock;
+
+/** Hours a closed pull request's Builds are kept: the Product's override, else 24 (docs/design.md#retention). */
+export function closedPullRequestHours(applicationId: ApplicationId): number {
+  return config.products?.[applicationId]?.retention?.closedPullRequestHours ?? 24;
+}

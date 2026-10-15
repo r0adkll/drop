@@ -138,6 +138,18 @@ CREATE TABLE installation_repositories (
   PRIMARY KEY (installation_id, repository_id)
 );
 
+-- The App's comment on each pull request that has Builds, edited in place (docs/design.md#pull-request-comments).
+CREATE TABLE pull_request_comments (
+  repository_id INTEGER NOT NULL,
+  pull_request INTEGER NOT NULL,
+  -- GitHub's issue comment ID, once posted.
+  comment_id INTEGER,
+  -- When the pull request closed, and whether it was merged, for the closed note.
+  closed_at INTEGER,
+  merged INTEGER CHECK (merged IN (0, 1)),
+  PRIMARY KEY (repository_id, pull_request)
+);
+
 -- When background jobs last ran, so work triggered by requests can be rate-limited across isolates.
 CREATE TABLE sync_state (
   name TEXT PRIMARY KEY NOT NULL,

@@ -112,7 +112,7 @@ export interface paths {
         put?: never;
         /**
          * Receives the deployment's GitHub App webhooks.
-         * @description Called by GitHub, signed with the App's webhook secret. Drop records the installations of listed Owners from `installation` and `installation_repositories` events (ADR 0004) and answers every other event, and installations by other accounts, as ignored.
+         * @description Called by GitHub, signed with the App's webhook secret. Drop records the installations of listed Owners from `installation` and `installation_repositories` events (ADR 0004), and ends a pull request's Channels and notes it in its comment on `pull_request` `closed`. Every other event, and events from accounts that aren't listed Owners, are answered as ignored.
          */
         post: operations["receiveGitHubWebhook"];
         delete?: never;

@@ -72,6 +72,15 @@ export async function createFakeGitHub({ appId = 4242, now = () => Date.now() }:
       state.comments.set(issueKey(match), [...(state.comments.get(issueKey(match)) ?? []), comment]);
       return Response.json(comment, { status: 201 });
     }],
+    ["DELETE", /^\/repos\/([^/]+\/[^/]+)\/issues\/comments\/(\d+)$/, (_call, match) => {
+      for (const [key, comments] of state.comments) {
+        if (comments.some((c) => c.id === Number(match[2]))) {
+          state.comments.set(key, comments.filter((c) => c.id !== Number(match[2])));
+          return new Response(null, { status: 204 });
+        }
+      }
+      return Response.json({ message: "Not Found" }, { status: 404 });
+    }],
     ["PATCH", /^\/repos\/([^/]+\/[^/]+)\/issues\/comments\/(\d+)$/, (call, match) => {
       for (const comments of state.comments.values()) {
         const comment = comments.find((c) => c.id === Number(match[2]));

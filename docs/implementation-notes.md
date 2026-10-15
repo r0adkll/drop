@@ -49,6 +49,14 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 
 - Permissions: *Metadata: read* and *Pull requests: read and write*. GitHub delivers pull request
   webhooks only to Apps with the Pull requests permission.
+- Events: the App subscribes to *Pull request*. `installation` and `installation_repositories`
+  reach every App without a subscription.
+- The pull request comment is an issue comment (`/repos/{owner}/{repo}/issues/{n}/comments`), which
+  *Pull requests: write* covers. Drop finds its own by the hidden marker
+  `<!-- drop:pull-request-comment -->` on a comment by a Bot whose `performed_via_github_app` is the
+  App; comments made with an installation token carry that field (*unverified*), and one without
+  it is still accepted. Two uploads finishing together can both post; the later one deletes the
+  newer comment and keeps the oldest.
 - Created per deployment through the manifest flow; its private key and webhook secret are Worker
   secrets. Verify webhooks with the `X-Hub-Signature-256` HMAC.
 - It must be installable by other accounts so a deployment can list several, which lets strangers

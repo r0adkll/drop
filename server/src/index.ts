@@ -3,9 +3,10 @@ import { installationAllowedRepositories, type AllowedRepositories, type AllowLi
 import { config, lock } from "./config";
 import { ApiError, type ErrorBody } from "./errors";
 import type { components } from "./generated/openapi";
-import { handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
+import { handlePullRequestEvent, handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
 import { createGitHubApp, NO_APP, type GitHubApp } from "./github/client";
 import { claimResync, resyncInstallations } from "./github/installations";
+import { updatePullRequestComment, type CommentTarget } from "./github/pull-request-comment";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
 import { r2Presigner, type Presigner } from "./presign";
 import { qrSvg } from "./qr";
@@ -74,7 +75,9 @@ export function createApp(deps: Dependencies) {
     const buildId = c.req.param("buildId");
     if (!BUILD_ID.test(buildId)) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
     const claims = await claimsOf(c);
-    return c.json(await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId));
+    const uploaded = await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId);
+    waitUntil(c)(announceOnPullRequest(deps, c.env, buildId, claims.repositoryOwnerId));
+    return c.json(uploaded);
   });
 
   app.post("/api/v1/github/webhook", async (c) => {
@@ -89,7 +92,13 @@ export function createApp(deps: Dependencies) {
       throw new ApiError(400, "invalid_request", "The body must be JSON.");
     }
     try {
-      const result = await handleWebhook(c.env.DB, deps.allowList.owners, c.req.header("x-github-event") ?? "", payload, deps.now());
+      const event = c.req.header("x-github-event") ?? "";
+      if (event === "pull_request") {
+        const { outcome, comment } = await handlePullRequestEvent(c.env.DB, deps.allowList.owners, payload, deps.now());
+        if (comment) waitUntil(c)(refreshComment(deps, c.env, comment));
+        return c.json<WebhookResult>({ result: outcome });
+      }
+      const result = await handleWebhook(c.env.DB, deps.allowList.owners, event, payload, deps.now());
       return c.json<WebhookResult>({ result });
     } catch (error) {
       if (error instanceof WebhookPayloadError) throw new ApiError(400, "invalid_request", error.message);
@@ -134,6 +143,40 @@ export function createApp(deps: Dependencies) {
   return app;
 }
 
+/** Brings a pull request's comment up to date, logging rather than failing the request. */
+async function refreshComment(deps: Dependencies, env: Env, target: CommentTarget): Promise<void> {
+  const github = deps.github(env);
+  if (!github) return;
+  try {
+    await updatePullRequestComment(env.DB, github, config.url, target);
+  } catch (error) {
+    console.error(`Updating the comment on ${target.repository}#${target.pullRequest} failed:`, error);
+  }
+}
+
+/** Shows a newly confirmed Build in its pull request's comment, if it is on a Pull request channel. */
+async function announceOnPullRequest(deps: Dependencies, env: Env, buildId: string, ownerId: number): Promise<void> {
+  const build = await env.DB
+    .prepare(
+      `SELECT c.pull_request, p.repository_id, p.repository FROM builds b
+       JOIN channels c ON c.id = b.channel_id JOIN products p ON p.application_id = b.application_id WHERE b.id = ?`,
+    )
+    .bind(buildId)
+    .first<{ pull_request: number | null; repository_id: number; repository: string }>();
+  if (build?.pull_request == null) return;
+  const installation = await env.DB.prepare("SELECT id FROM installations WHERE account_id = ?").bind(ownerId).first<{ id: number }>();
+  if (!installation) {
+    console.warn(`No installation recorded for ${build.repository}'s owner, so its pull request comment can't be updated.`);
+    return;
+  }
+  await refreshComment(deps, env, {
+    repositoryId: build.repository_id,
+    repository: build.repository,
+    pullRequest: build.pull_request,
+    installationId: installation.id,
+  });
+}
+
 /** The ID of a confirmed Build, expired or not; 404 otherwise. */
 async function existingBuild(env: Env, buildId: string): Promise<string> {
   const found = BUILD_ID.test(buildId) && (await env.DB.prepare("SELECT 1 FROM builds WHERE id = ?").bind(buildId).first());
@@ -164,6 +207,8 @@ export async function runScheduled(deps: Dependencies, env: Env): Promise<void> 
   } else {
     throw new Error(`Can't resync GitHub App installations: ${gitHubAppProblem(env)}`);
   }
+  // TODO: retention: once a closed pull request's Builds are deleted, edit its comment down to a note
+  // that they were deleted (docs/design.md#pull-request-comments).
   // TODO: retention: delete expired Builds' files, abandoned `uploads` rows (older than the upload URL
   // lifetime) and their R2 objects, and Pull request channels 24 hours after they end.
 }
