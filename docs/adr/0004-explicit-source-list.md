@@ -10,7 +10,7 @@ Owner's installation. The list is required and is the deployment's trust boundar
 accepts nothing, and an installation by an unlisted account grants nothing.
 
 Owners are matched by numeric ID, never by name: a renamed or deleted account's name can be
-registered by someone else, but its ID is never reused. `npm run setup` resolves each listed Owner
+registered by someone else, but its ID is never reused. Setup (`./drop setup`) resolves each listed Owner
 to its ID through the GitHub API and writes `drop.config.lock.json`, which is checked in and bundled
 into the Worker; the deploy check fails while a listed Owner is missing from it. Repository IDs come
 from the installation itself, which the Worker records from the App's `installation` and

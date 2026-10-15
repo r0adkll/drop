@@ -22,8 +22,10 @@ it is implemented.
 One repository ([ADR 0008](adr/0008-typescript-server-openapi-contract.md)):
 
 ```
-server/          TypeScript Worker (Hono), D1 migrations, the OpenAPI document
-action/          GitHub Action (node24, runs aapt2 + apksigner)
+server/          TypeScript Worker (Hono), D1 migrations, the OpenAPI document, setup and deploy scripts
+action/          upload Action (node24, runs aapt2 + apksigner)
+deploy/          deploy Action (composite), used by deployment repositories
+deployment/      starter files for a deployment repository, and init.sh to create one
 android/         Gradle build: SDK modules (KMP, Android target) and samples
 android/plugin/  Gradle plugin, as an included build
 docs/            design notes and ADRs
@@ -174,36 +176,78 @@ are credentials and the deployment repository may be public. Milestone 1 sends n
 
 ## Releases
 
-The SDK is published to Maven Central under `com.r0adkll.drop` with gradle-maven-publish-plugin, the Gradle plugin to the Gradle
-Plugin Portal as `com.r0adkll.drop`, and the Action is used from the repository path
-(`r0adkll/drop/action@v1`). All three share one version and are released together; adopters deploy
-the server themselves from the template.
+The SDK is published to Maven Central under `com.r0adkll.drop` with gradle-maven-publish-plugin,
+the Gradle plugin to the Gradle Plugin Portal as `com.r0adkll.drop`, and the upload and deploy
+Actions are used from their repository paths (`r0adkll/drop/action@v1`, `r0adkll/drop/deploy@v1`).
+All four share one version and are released together. A Deployment runs the release its deploy
+workflow pins ([ADR 0016](adr/0016-config-only-deployment-repositories.md)).
 
 ## Deployment
 
-- Drop is a template repository. An adopter makes their own copy, edits `drop.config.json`
-  (checked against a JSON Schema and bundled into the Worker at deploy), adds the Worker secrets
-  and deploys with `wrangler deploy` or Cloudflare's Git integration.
-- The config holds the deployment's URL, the required `owners` list (accounts such as `"campfire"`
-  or `"r0adkll"`), per-repository exceptions allowing `pull_request_target` or `workflow_run`
-  uploads (`"repositories": { "r0adkll/side-app": { "allowEvents": [...] } }`; they never grant
-  access), webhooks and per-Product overrides (force private, retention, icon, display name).
-  `npm run setup` records each Owner's numeric ID in `drop.config.lock.json`, which is checked in and
-  bundled with the config; the deploy check fails while an Owner is missing from it, and setup keeps
-  locked IDs unless run with `--refresh`. Each Owner then installs the deployment's GitHub App on
-  the repositories it wants to upload from; changing that selection needs no redeploy. Secrets,
-  such as the GitHub App's private key and webhook secret, are Worker secrets and never appear in
-  the config.
-- `npm run setup` also creates the GitHub App, once, through the manifest flow
-  ([ADR 0010](adr/0010-github-app-for-access.md)): it serves a form on `127.0.0.1` that posts the
-  manifest to GitHub, takes GitHub's redirect back, exchanges the code, writes the private key,
-  webhook secret and client secret to `server/.dev.vars`, and records the App's ID, slug and client
-  ID in the lockfile. A deploy fails while a required secret is missing from the Worker, so the
-  order for a new deployment is: setup, then the first deploy with `npm run deploy:secrets`
-  (`wrangler deploy --secrets-file .dev.vars`), which uploads the secrets with it. When the Worker
-  already exists, setup puts the secrets on it with `wrangler secret bulk`, and
-  `npm run setup -- --push-secrets` repeats that from `.dev.vars`. `--recreate-app` makes a new App
-  (the old one has to be deleted on GitHub by hand), and `--skip-app` only resolves Owners.
+- **Deployment repositories** ([ADR 0016](adr/0016-config-only-deployment-repositories.md)). Each
+  Deployment is its own repository holding only configuration: `drop.config.json`,
+  `drop.config.lock.json`, the `./drop` script, a `.gitignore` for `.dev.vars` and local state, and
+  `.github/workflows/deploy.yml`. `deployment/init.sh` creates one from `deployment/template`,
+  pinned to a Drop ref (`--ref`, default `main` until there are releases), and with `--github`
+  creates its private GitHub repository too. `r0adkll/drop` itself keeps only placeholders.
+- **One pinned version.** The deploy workflow's `uses: r0adkll/drop/deploy@<ref>` pins Drop.
+  GitHub fetches the whole repository at that ref for the composite deploy Action, which deploys the
+  server from that checkout: `npm ci`, `check:config --deploy`, a generated Wrangler config,
+  `wrangler d1 migrations apply --remote`, then `wrangler deploy`. `./drop` reads the same pin,
+  keeps a shallow checkout of that ref under `${XDG_CACHE_HOME:-~/.cache}/drop/<owner>/<repo>/<ref>`
+  (fetched again on every run, so a branch pin follows its branch), runs `npm ci` once per
+  lockfile, and runs `setup`, `deploy` or `dev` there. Upgrading Drop is changing the ref.
+- **Where the files come from.** Every server script reads the Deployment from
+  `DROP_DEPLOYMENT_DIR`, which `./drop` and the deploy Action set; without it, the repository root
+  and its placeholders, which developing Drop uses. The Worker bundles `drop.config.json` and the
+  lockfile at build time through the module aliases `drop-deployment/config` and
+  `drop-deployment/lock`: `server/wrangler.jsonc` points them at the placeholders, and a
+  Deployment's generated Wrangler config (`server/wrangler.deployment.json`, gitignored) at its own
+  files, along with its account, Worker name, D1 database, R2 bucket and route. A custom hostname is
+  served as a Custom Domain with the `workers.dev` and preview URLs off, so the Deployment has one
+  URL, which is also the upload tokens' audience; a `<worker>.<subdomain>.workers.dev` URL keeps
+  `workers.dev` on instead.
+- **The config** (`drop.config.json`, checked against a JSON Schema) holds the Deployment's URL, the
+  required `owners` list (accounts such as `"campfire"` or `"r0adkll"`), per-repository exceptions
+  allowing `pull_request_target` or `workflow_run` uploads
+  (`"repositories": { "r0adkll/side-app": { "allowEvents": [...] } }`; they never grant access),
+  webhooks and per-Product overrides (force private, retention, icon, display name). Each Owner
+  installs the Deployment's GitHub App on the repositories it wants to upload from; changing that
+  selection needs no redeploy.
+- **The lockfile** (`drop.config.lock.json`) is written only by setup and checked in: each Owner's
+  numeric ID (kept unless setup runs with `--refresh`), the GitHub App's ID, slug and client ID, and
+  the Cloudflare resources (`accountId`, `workerName`, `d1DatabaseId`, `r2Bucket`). The config
+  check fails while an Owner is missing from it; deploying also needs every Cloudflare field.
+  Secrets never appear in the config or the lockfile: they live in the Deployment's `.dev.vars`
+  (gitignored) and as Worker secrets.
+- **`./drop setup`** is one guided run of numbered stages, each skipping work already done, so it is
+  safe to stop and run again:
+  1. *Cloudflare account:* signs wrangler in if needed and picks the account. The Worker is named
+     `drop` unless `--worker-name` says otherwise on the first run.
+  2. *D1 database:* named after the Worker, adopted if it exists, created otherwise.
+  3. *R2 bucket and API token:* creates `<worker>-builds`, sending the operator to the dashboard if
+     R2 isn't enabled, then asks for an R2 API token scoped to that bucket, checks it by listing the
+     bucket, and writes it to `.dev.vars`.
+  4. *Owners:* records each Owner's ID.
+  5. *GitHub App:* creates it through the manifest flow
+     ([ADR 0010](adr/0010-github-app-for-access.md)), serving a form on `127.0.0.1` that posts the
+     manifest to GitHub and taking GitHub's redirect back; its private key, webhook secret and
+     client secret go to `.dev.vars`. `--recreate-app` makes a new one (the old one is deleted on
+     GitHub by hand); `--skip-app` leaves it for later.
+  6. *First deploy:* a deploy fails while a required secret is missing from the Worker, so the first
+     one uploads `.dev.vars` with it (`wrangler deploy --secrets-file`). For a Worker that already
+     exists, setup stores any secrets it just wrote with `wrangler secret bulk`.
+  7. *CI credentials:* asks for a Cloudflare API token, checks it with Cloudflare, and stores it as
+     the Deployment repository's `CLOUDFLARE_API_TOKEN` secret, with the account ID as its
+     `CLOUDFLARE_ACCOUNT_ID` variable, through `gh`. Without a GitHub remote or `gh`, it prints the
+     steps instead.
+  8. *Finish:* prints the App's install link and anything left to do.
+
+  Secrets are read with echo off and passed on stdin, never in arguments or output.
+- **Day to day.** Every push to the Deployment repository's `main` deploys. `./drop deploy` deploys
+  from a machine (`--secrets` uploads `.dev.vars` again), `./drop setup --push-secrets` stores
+  `.dev.vars` on the deployed Worker without deploying, and `./drop dev` runs the Worker locally
+  with its local D1 in the Deployment repository's `.wrangler/state`.
 - There is no admin interface in milestone 1. Emergencies (for example a Build that leaked a
   secret) are handled with a documented `wrangler` script that deletes a Build.
 

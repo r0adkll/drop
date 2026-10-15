@@ -22,11 +22,12 @@ and *Pull requests: read and write*, and nothing else.
 
 ## Consequences
 
-Each deployment needs its own GitHub App. `npm run setup` creates it through GitHub's manifest
-flow, under the personal account of whoever runs setup: it opens GitHub's create-App form
+Each deployment needs its own GitHub App. Setup (`./drop setup`) creates it through GitHub's
+manifest flow, under the personal account of whoever runs setup: it opens GitHub's create-App form
 pre-filled from a manifest, receives GitHub's redirect on `localhost`, exchanges the code for the
-App's credentials, stores the private key and webhook secret as Worker secrets with
-`wrangler secret put`, and writes the App's ID and slug into `drop.config.lock.json`. The App is
+App's credentials, keeps the private key and webhook secret for the Worker's secrets (uploaded with
+its first deploy, or with `wrangler secret bulk` once it exists), and writes the App's ID and slug
+into `drop.config.lock.json`. The App is
 private when the setup account is the only listed Owner, and public otherwise, so that the other
 Owners can install it ([ADR 0004](0004-explicit-source-list.md)). Because the App posts the pull
 request comments and decides which repositories may upload, it is part of the first milestone even

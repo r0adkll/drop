@@ -47,6 +47,11 @@ _Avoid_: Build metadata, fingerprint
 
 ### People and access
 
+**Deployment**:
+One running Drop server on one operator's Cloudflare account, defined by a deployment repository
+that holds its config, its lockfile and the Drop release it pins.
+_Avoid_: Instance, tenant, installation
+
 **Tester**:
 A person, identified by their GitHub account, who may install Builds of a Product.
 _Avoid_: User, member

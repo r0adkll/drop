@@ -28,6 +28,31 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   treats `wrangler secret list` failing with code 10007 (*unverified*) as "not deployed yet".
 - `.dev.vars` is parsed as dotenv: a double-quoted value expands `\n`, so setup stores the PEM on one
   line; the Worker's key parser accepts literal `\n` too.
+- `wrangler dev` reads `.dev.vars` next to its config unless given `--env-file`, which replaces that
+  lookup (wrangler 4.151's source). `./drop dev` passes the Deployment's own `.dev.vars` this way.
+- Wrangler's `alias` resolves each target with Node's resolution from the config file's directory,
+  so `wrangler.jsonc` can use relative paths and a generated config absolute ones (wrangler's
+  source, and a dry-run bundle checked to contain a Deployment's config). Vitest needs the same
+  aliases in `resolve.alias`; TypeScript gets them from `paths`.
+- `wrangler whoami --json` prints `{ loggedIn, email, accounts: [{ id, name }] }` and exits non-zero
+  when signed out; `wrangler d1 list --json` lists databases with `uuid` and `name` (wrangler
+  4.151's source). Setup lists again after `wrangler d1 create` rather than parsing its human
+  output. `wrangler d1 migrations apply --remote` skips its confirmation when not interactive
+  (wrangler's help), so the deploy Action can run it.
+- A Custom Domain is a route with `custom_domain: true`; deploying creates its DNS record and
+  certificate. The hostname's zone must be active on Cloudflare, and the hostname must not already
+  have a CNAME record (Cloudflare's docs). Setup's first deploy runs with the operator's own
+  `wrangler login`, which creates the domain. Whether a CI token without DNS permissions can create
+  one is *unverified*, so CI only redeploys an existing one.
+- Cloudflare's *Edit Cloudflare Workers* token template grants Workers Scripts, KV, R2, Tail and
+  Workers Routes, but no D1 permission (Cloudflare's template table), so the CI token needs D1 Edit
+  added for the migrations every deploy applies. That this is enough to redeploy a Custom Domain is
+  *unverified*.
+- R2 must be enabled in the dashboard before `wrangler r2 bucket create` works; setup recognises the
+  failure by code 10042 or the words "enable R2" (*unverified*), and enabling asks for a payment
+  method even on the free tier (*unverified*). Setup checks an R2 token by listing its bucket
+  (ListObjectsV2), which an *Object Read & Write* token scoped to that bucket allows; whether such a
+  token may also call HeadBucket is *unverified*, so setup doesn't rely on it.
 - Retention runs from a Cron Trigger. Deleted Builds and ended Channels keep their D1 rows (without
   the file) so expired Build pages and ended-Channel answers keep working.
 
@@ -91,13 +116,24 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   import; the Worker wraps it in PKCS#8. App JWTs are backdated 60 seconds and live 9 minutes;
   installation tokens last an hour and are reused until 5 minutes before they expire.
 - `GET https://api.github.com/users/<login>` returns the numeric `id` for organizations as well as
-  users; unauthenticated calls are limited to 60 an hour, so `npm run setup` uses `GITHUB_TOKEN` or
+  users; unauthenticated calls are limited to 60 an hour, so setup uses `GITHUB_TOKEN` or
   `gh auth token` when it can.
 - Pull request comments show images through GitHub's image proxy, so the QR code in a comment has
   to be an image URL the Worker serves for each Build. SVG should work; switch to PNG if the proxy
   rejects it (*unverified*).
 
-## The Action
+## The deploy Action
+
+- For `uses: owner/repo/path@ref`, the runner downloads the whole repository at that ref and
+  `github.action_path` (`$GITHUB_ACTION_PATH`) is the action's directory inside it, so the deploy
+  Action reaches the server at `$GITHUB_ACTION_PATH/../server`. This is how the runner behaves, but
+  GitHub's metadata docs don't say so (*unverified* against the docs; CI runs the Action as
+  `uses: ./deploy`, which exercises the same layout).
+- `actions/setup-node`'s `node-version-file` takes an absolute path, so the Action reads
+  `${{ github.action_path }}/../server/.nvmrc` (*unverified* until CI runs it). It skips setup-node's
+  npm cache, whose dependency path would sit outside the workspace.
+
+## The upload Action
 
 - `aapt2 dump badging <apk>` gives the package name, `versionCode`, `versionName`,
   `application-label` and `application-icon-<density>` paths; `apksigner verify --print-certs`
