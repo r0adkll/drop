@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+#
+# Runs Drop's setup, deploys and local development for this deployment repository. It works from a
+# cached checkout of the Drop release that .github/workflows/deploy.yml pins, so setup, CI deploys
+# and this script always run the same version. Upgrade by changing the ref in that workflow.
+#
+# Usage: ./drop <command> [options]; ./drop help lists the commands.
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: ./drop <command> [options]
+
+Commands:
+  setup [options]    Set up or repair this deployment: Cloudflare account, D1 database, R2 bucket and
+                     token, Owner IDs, GitHub App, first deploy and CI credentials. Safe to re-run.
+                     Options: --refresh, --skip-app, --recreate-app, --app-name <name>,
+                     --worker-name <name>, --push-secrets
+  deploy [options]   Deploy from this machine. CI deploys every push to main.
+                     Options: --secrets (upload .dev.vars too), --dry-run
+  dev [args]         Run the Worker locally with wrangler dev; extra arguments go to wrangler.
+  version            Print the Drop repository and ref this deployment pins.
+  help               Show this help.
+EOF
+}
+
+die() {
+  printf 'drop: %s\n' "$1" >&2
+  exit "${2:-1}"
+}
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+workflow="$root/.github/workflows/deploy.yml"
+
+# Sets $repository (owner/name) and $ref from the workflow's `uses: <owner>/<name>/deploy@<ref>`.
+read_pin() {
+  [ -f "$workflow" ] || die "$workflow is missing; it pins the Drop release this deployment runs."
+  local uses
+  uses="$(sed -nE "s/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[\"']?([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/deploy@([^\"'[:space:]#]+).*/\1 \2/p" "$workflow" | head -n 1)"
+  [ -n "$uses" ] || die "$workflow has no 'uses: <owner>/<repo>/deploy@<ref>' step to pin Drop's version."
+  repository="${uses% *}"
+  ref="${uses#* }"
+}
+
+cache_dir() {
+  printf '%s/drop/%s/%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}" "$repository" "${ref//\//_}"
+}
+
+require() {
+  command -v "$1" >/dev/null 2>&1 || die "$1 is not installed; $2"
+}
+
+# Brings the cached checkout to the pinned ref and installs its dependencies once per lockfile.
+sync_checkout() {
+  require git "install git to fetch Drop."
+  require node "install Node.js 24 or later."
+  require npm "install npm (it comes with Node.js)."
+  local checkout url
+  checkout="$(cache_dir)"
+  url="${DROP_GIT_URL:-https://github.com/$repository.git}"
+  if [ ! -d "$checkout/.git" ]; then
+    mkdir -p "$checkout"
+    git -C "$checkout" init -q
+    git -C "$checkout" remote add origin "$url"
+  fi
+  if git -C "$checkout" fetch -q --depth 1 origin "$ref" 2>/dev/null; then
+    git -C "$checkout" checkout -q --force FETCH_HEAD
+  elif git -C "$checkout" rev-parse -q --verify HEAD >/dev/null; then
+    printf 'drop: could not fetch %s from %s; using the cached checkout.\n' "$ref" "$url" >&2
+  else
+    die "could not fetch $ref from $url."
+  fi
+
+  local wanted major
+  wanted="$(tr -dc '0-9' <"$checkout/server/.nvmrc" 2>/dev/null || true)"
+  major="$(node -p 'process.versions.node.split(".")[0]')"
+  [ "$major" -ge "${wanted:-24}" ] || die "Drop needs Node.js ${wanted:-24} or later; this is $(node --version)."
+
+  local lock marker
+  lock="$(git -C "$checkout" rev-parse HEAD:server/package-lock.json)"
+  marker="$checkout/server/node_modules/.drop-installed-$lock"
+  if [ ! -f "$marker" ]; then
+    (cd "$checkout/server" && npm ci --no-audit --no-fund --loglevel=error) || die "npm ci failed in $checkout/server."
+    touch "$marker"
+  fi
+  checkout_dir="$checkout"
+}
+
+command="${1:-help}"
+[ $# -gt 0 ] && shift
+
+case "$command" in
+  setup | deploy | dev)
+    read_pin
+    sync_checkout
+    export DROP_DEPLOYMENT_DIR="$root"
+    cd "$checkout_dir/server"
+    case "$command" in
+      setup) exec node scripts/setup.ts "$@" ;;
+      deploy) exec node scripts/deployment.ts deploy "$@" ;;
+      dev) exec node scripts/deployment.ts dev "$@" ;;
+    esac
+    ;;
+  version)
+    read_pin
+    printf '%s %s\n' "$repository" "$ref"
+    ;;
+  cache-dir)
+    read_pin
+    cache_dir
+    ;;
+  help | -h | --help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

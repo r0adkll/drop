@@ -1,0 +1,46 @@
+name: Deployment
+
+# The deploy Action and the starter files for deployment repositories. Their unit tests run in the
+# Server workflow; this one lints them and runs the Action itself, as a dry run, against a placeholder
+# deployment.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - deploy/**
+      - deployment/**
+      - server/**
+      - .github/workflows/**
+  pull_request:
+    paths:
+      - deploy/**
+      - deployment/**
+      - server/**
+      - .github/workflows/**
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint workflows, including the starter deploy workflow
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color .github/workflows/server.yml .github/workflows/action.yml .github/workflows/deployment.yml deployment/template/.github/workflows/deploy.yml
+      - name: Lint the scripts
+        run: shellcheck deployment/init.sh deployment/template/drop
+
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the deploy Action against the placeholder deployment
+        uses: ./deploy
+        with:
+          cloudflare-api-token: unused-on-a-dry-run
+          working-directory: server/test/fixtures/deployment
+          dry-run: "true"

@@ -1,0 +1,4 @@
+# Local secrets written by ./drop setup: the R2 API token and the GitHub App's credentials.
+.dev.vars*
+# Local state for ./drop dev.
+.wrangler/

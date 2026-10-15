@@ -1,0 +1,66 @@
+name: Drop deploy
+description: Deploy a Drop server from a config-only deployment repository.
+author: r0adkll
+branding:
+  icon: upload-cloud
+  color: green
+
+# GitHub fetches this whole repository at the ref a workflow names (r0adkll/drop/deploy@<ref>), so
+# the server deployed is always the one from that same ref: ${{ github.action_path }}/../server.
+
+inputs:
+  cloudflare-api-token:
+    description: >
+      A Cloudflare API token from the Edit Cloudflare Workers template, plus D1 Edit. Pass it from a
+      secret.
+    required: true
+  cloudflare-account-id:
+    description: >
+      The Cloudflare account to deploy to. Optional, since drop.config.lock.json records it; a
+      different one fails the deploy.
+    required: false
+    default: ""
+  working-directory:
+    description: The deployment repository's directory, relative to the workspace.
+    required: false
+    default: .
+  dry-run:
+    description: Build and check the Worker without deploying it or applying migrations.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: ${{ github.action_path }}/../server/.nvmrc
+
+    - name: Install Drop's server
+      shell: bash
+      run: |
+        cd "$GITHUB_ACTION_PATH/../server"
+        npm ci --no-audit --no-fund
+
+    - name: Check the deployment's config
+      shell: bash
+      env:
+        DROP_DEPLOYMENT_DIR: ${{ github.workspace }}/${{ inputs.working-directory }}
+      run: |
+        cd "$GITHUB_ACTION_PATH/../server"
+        npm run -s check:config -- --deploy
+
+    - name: Deploy
+      shell: bash
+      env:
+        DROP_DEPLOYMENT_DIR: ${{ github.workspace }}/${{ inputs.working-directory }}
+        CLOUDFLARE_API_TOKEN: ${{ inputs.cloudflare-api-token }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.cloudflare-account-id }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        cd "$GITHUB_ACTION_PATH/../server"
+        if [ "$DRY_RUN" = "true" ]; then
+          node scripts/deployment.ts deploy --dry-run
+        else
+          node scripts/deployment.ts deploy
+        fi

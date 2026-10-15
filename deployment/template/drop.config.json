@@ -1,0 +1,5 @@
+{
+  "$schema": "https://raw.githubusercontent.com/r0adkll/drop/main/drop.config.schema.json",
+  "url": "https://drop.example.com",
+  "owners": ["your-org"]
+}
