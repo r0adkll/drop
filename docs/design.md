@@ -181,6 +181,16 @@ the server themselves from the template.
   the repositories it wants to upload from; changing that selection needs no redeploy. Secrets,
   such as the GitHub App's private key and webhook secret, are Worker secrets and never appear in
   the config.
+- `npm run setup` also creates the GitHub App, once, through the manifest flow
+  ([ADR 0010](adr/0010-github-app-for-access.md)): it serves a form on `127.0.0.1` that posts the
+  manifest to GitHub, takes GitHub's redirect back, exchanges the code, writes the private key,
+  webhook secret and client secret to `server/.dev.vars`, and records the App's ID, slug and client
+  ID in the lockfile. A deploy fails while a required secret is missing from the Worker, so the
+  order for a new deployment is: setup, then the first deploy with `npm run deploy:secrets`
+  (`wrangler deploy --secrets-file .dev.vars`), which uploads the secrets with it. When the Worker
+  already exists, setup puts the secrets on it with `wrangler secret bulk`, and
+  `npm run setup -- --push-secrets` repeats that from `.dev.vars`. `--recreate-app` makes a new App
+  (the old one has to be deleted on GitHub by hand), and `--skip-app` only resolves Owners.
 - There is no admin interface in milestone 1. Emergencies (for example a Build that leaked a
   secret) are handled with a documented `wrangler` script that deletes a Build.
 

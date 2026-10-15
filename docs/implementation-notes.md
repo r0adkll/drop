@@ -20,6 +20,14 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - R2 has no egress fees, which is the reason for the whole platform choice
   ([ADR 0001](adr/0001-cloudflare-workers-r2-d1.md)). Serve downloads from R2 with
   `Content-Type: application/vnd.android.package-archive` and a `Content-Disposition` filename.
+- With `secrets.required` in `wrangler.jsonc`, `wrangler deploy` fails until every listed secret is
+  set on the Worker; `wrangler dev` only warns, and loads only the listed keys from `.dev.vars`.
+  `wrangler deploy --secrets-file <file>` uploads secrets with the deploy (additively), which is how
+  a Worker's first deploy gets them. `wrangler secret bulk` reads JSON from stdin. What
+  `wrangler secret put`/`bulk` do for a Worker that was never deployed isn't documented; setup
+  treats `wrangler secret list` failing with code 10007 (*unverified*) as "not deployed yet".
+- `.dev.vars` is parsed as dotenv: a double-quoted value expands `\n`, so setup stores the PEM on one
+  line; the Worker's key parser accepts literal `\n` too.
 - Retention runs from a Cron Trigger. Deleted Builds and ended Channels keep their D1 rows (without
   the file) so expired Build pages and ended-Channel answers keep working.
 
@@ -59,6 +67,14 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   newer comment and keeps the oldest.
 - Created per deployment through the manifest flow; its private key and webhook secret are Worker
   secrets. Verify webhooks with the `X-Hub-Signature-256` HMAC.
+- Manifest flow: POST a `manifest` form field to `https://github.com/settings/apps/new?state=…`
+  (`/organizations/<org>/settings/apps/new` for an org); GitHub redirects to the manifest's
+  `redirect_url` with `code` and `state`, and `POST /app-manifests/{code}/conversions`, which needs no
+  authentication, answers 201 with the App (`id`, `slug`, `client_id`, `html_url`, `owner`) plus
+  `client_secret`, `webhook_secret` and `pem`. The whole flow must finish within an hour. GitHub's
+  docs don't say whether a loopback `redirect_url` such as `http://127.0.0.1:<port>/callback` is
+  accepted; Probot's setup uses `localhost` the same way (*unverified* for 127.0.0.1). App names are
+  limited to 34 characters (*unverified*; the docs give no limit).
 - It must be installable by other accounts so a deployment can list several, which lets strangers
   install it too; ignore installations and webhooks from accounts whose ID isn't a locked Owner.
 - Drop learns which repositories an installation covers from `installation` and

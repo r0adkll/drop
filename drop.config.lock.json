@@ -1,5 +1,5 @@
 {
-  "$comment": "Written by `npm run setup` in server/: the numeric GitHub ID of each Owner in drop.config.json. Check it in. These IDs are placeholders.",
+  "$comment": "Written by `npm run setup` in server/: the numeric GitHub ID of each Owner in drop.config.json, and the deployment's GitHub App. Check it in. These IDs are placeholders.",
   "owners": {
     "your-org": 1000001,
     "you": 1000002

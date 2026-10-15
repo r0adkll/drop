@@ -38,9 +38,17 @@ The deployment's `drop.config.json` lists the accounts it trusts:
 }
 ```
 
-`npm run setup` records each account's numeric ID in `drop.config.lock.json`, which you check in.
-Each listed account then installs the deployment's GitHub App, choosing all of its repositories or
-only some, in GitHub's settings. Adding or removing a repository needs no redeploy.
+Then, in `server/` (details in [`server/README.md`](server/README.md)):
+
+1. **Set up:** `npm run setup` records each account's numeric ID in `drop.config.lock.json` and
+   creates the deployment's GitHub App in your browser, under your personal GitHub account. The
+   App's private key and webhook secret go into `server/.dev.vars` and never appear on screen. Add
+   the R2 API token's values there too.
+2. **Deploy:** the first deploy carries the secrets: `npm run deploy:secrets`. Later deploys are
+   `npm run deploy`, or Cloudflare's Git integration. Commit `drop.config.lock.json`.
+3. **Install the App:** each listed account installs it from the link setup prints, choosing all of
+   its repositories or only some in GitHub's settings. Changing that choice needs no redeploy.
+4. **Add the Action** to the repositories' workflows, as below.
 
 A workflow in one of those repositories uploads with the Drop Action. Its only setup is permission to
 request a GitHub OIDC token; there are no secrets to store:
