@@ -99,13 +99,13 @@ function expiredPage(build: PageBuild, next: Extract<BuildPageModel, { kind: "ex
   let explanation: string;
   if (next.because === "channel_ended" && build.channel.pullRequest !== null && build.channel.endedAt !== null) {
     explanation =
-      `Pull request #${build.channel.pullRequest} was closed on ${time(build.channel.endedAt)}, and the Builds on ` +
+      `Pull request #${build.channel.pullRequest} was closed on ${date(build.channel.endedAt)}, and the Builds on ` +
       `<code>${esc(channel)}</code> were deleted ${hoursLater(closedPullRequestHours(build.applicationId))}.`;
   } else {
     const days = build.channel.pullRequest !== null ? pullRequestBuildDays(build.applicationId) : buildDays(build.applicationId);
     explanation =
       `Builds on <code>${esc(channel)}</code> are deleted ${days} days after upload, unless they are the newest. ` +
-      `This one was uploaded on ${time(build.uploadedAt)} and deleted on ${time(build.deletedAt!)}.`;
+      `This one was uploaded on ${date(build.uploadedAt)} and deleted on ${date(build.deletedAt!)}.`;
   }
 
   let nextPanel: string;
@@ -264,6 +264,11 @@ function time(at: number, relative = false): string {
   return `<time datetime="${new Date(at).toISOString()}"${relative ? " data-relative" : ""}>${formatUtc(at)}</time>`;
 }
 
+/** A date alone, for running sentences; localized by the page's script like time(). */
+function date(at: number): string {
+  return `<time datetime="${new Date(at).toISOString()}" data-date>${formatUtcDate(at)}</time>`;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Document
 
@@ -309,7 +314,12 @@ export function formatUtc(at: number): string {
   const d = new Date(at);
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}, ${hh}:${mm} UTC`;
+  return `${formatUtcDate(at)}, ${hh}:${mm} UTC`;
+}
+
+export function formatUtcDate(at: number): string {
+  const d = new Date(at);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
 
 /** Decimal units, as Android's own storage screens show them. */
@@ -357,11 +367,12 @@ const DOWNLOAD_ICON =
 /** Localizes times and wires up Copy link; the page works without it. */
 export const PAGE_SCRIPT = `(() => {
   const full = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const day = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
   const rel = typeof Intl.RelativeTimeFormat === "function" ? new Intl.RelativeTimeFormat(undefined, { numeric: "auto" }) : null;
   for (const t of document.querySelectorAll("time[datetime]")) {
     const d = new Date(t.getAttribute("datetime"));
     if (isNaN(d.getTime())) continue;
-    t.textContent = full.format(d);
+    t.textContent = (t.hasAttribute("data-date") ? day : full).format(d);
     if (rel && t.hasAttribute("data-relative")) {
       const s = (d.getTime() - Date.now()) / 1000, a = Math.abs(s);
       const [v, u] = a < 3600 ? [s / 60, "minute"] : a < 86400 ? [s / 3600, "hour"] : [s / 86400, "day"];

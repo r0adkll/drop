@@ -89,6 +89,8 @@ describe("the Build page", () => {
     expect(status).toBe(200);
     expect(html).toContain("<h1>This Build has expired</h1>");
     expect(html).toContain("Builds on <code>pr/142</code> are deleted 7 days after upload, unless they are the newest.");
+    // Running prose gives dates alone, as the agreed mockup does; the details list keeps times.
+    expect(html).toMatch(/This one was uploaded on <time [^>]*data-date>[A-Z][a-z]{2} \d{1,2}, \d{4}<\/time> and deleted on <time [^>]*data-date>/);
     expect(html).toContain('<span class="icon gone">');
     expect(html).toContain('id="newest">Newest on pr/142</p>');
     expect(html).toContain('href="/b/Rt4wN8cZ">Open its Build page</a>');
