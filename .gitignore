@@ -3,3 +3,6 @@ node_modules/
 .dev.vars*
 !.dev.vars.example
 server/wrangler.deployment.json
+
+# Claude Code agent worktrees
+.claude/worktrees/
