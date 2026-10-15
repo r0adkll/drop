@@ -1,0 +1,27 @@
+// Deployment-specific values (database ID, bucket name, route) are placeholders: each adopter
+// replaces them for their own Cloudflare account. Everything else comes from drop.config.json.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drop",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "drop",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUILDS",
+      "bucket_name": "drop-builds"
+    }
+  ],
+  "triggers": {
+    // Retention runs hourly; see docs/design.md#retention.
+    "crons": ["0 * * * *"]
+  }
+}

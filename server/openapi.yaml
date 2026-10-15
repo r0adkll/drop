@@ -1,0 +1,51 @@
+openapi: 3.1.0
+info:
+  title: Drop
+  version: 0.0.0
+  description: >
+    The Drop server API. This document is the single definition of the API: the server's types and
+    the Kotlin client are generated from it (ADR 0008).
+servers:
+  - url: https://drop.example.com
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Reports that the server is up.
+      responses:
+        "200":
+          description: The server is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  responses:
+    Error:
+      description: The request failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          description: A stable, machine-readable reason, such as `not_found`.
+          type: string
+        message:
+          description: A human-readable explanation. Not stable; do not match on it.
+          type: string

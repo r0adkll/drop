@@ -1,0 +1,29 @@
+{
+  "name": "drop-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "npm run check:config && wrangler deploy",
+    "generate": "openapi-typescript openapi.yaml -o src/generated/openapi.ts",
+    "check:generated": "openapi-typescript openapi.yaml -o src/generated/openapi.ts --check",
+    "check:config": "node scripts/check-config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "vitest run",
+    "typegen": "wrangler types",
+    "check:typegen": "wrangler types --check"
+  },
+  "dependencies": {
+    "hono": "4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.3",
+    "@types/node": "24.19.2",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5",
+    "wrangler": "4.151.0"
+  }
+}

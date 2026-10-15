@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Drop deployment config",
+  "description": "Everything specific to one Drop deployment except its secrets. See docs/design.md#deployment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["url", "repositories"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "url": {
+      "description": "The deployment's public URL. Also the audience upload tokens must carry.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^/]+$"
+    },
+    "repositories": {
+      "description": "The Owners and repositories that may upload. An empty list accepts nothing (ADR 0004).",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/ownerName" },
+          { "$ref": "#/$defs/repositoryName" },
+          { "$ref": "#/$defs/repositoryEntry" }
+        ]
+      }
+    },
+    "webhooks": {
+      "description": "Outgoing webhooks sent when a Build lands, by name. Each URL is the Worker secret WEBHOOK_<NAME>, upper-cased with dashes as underscores.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": { "$ref": "#/$defs/webhook" }
+    },
+    "products": {
+      "description": "Per-Product overrides, by application ID.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/applicationId" },
+      "additionalProperties": { "$ref": "#/$defs/productOverrides" }
+    }
+  },
+  "$defs": {
+    "ownerName": {
+      "description": "A whole GitHub account: every repository in it may upload.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$"
+    },
+    "repositoryName": {
+      "description": "A single repository, as owner/name.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}/[A-Za-z0-9._-]{1,100}$"
+    },
+    "repositoryEntry": {
+      "description": "A single repository with allowances. pull_request_target and workflow_run run with the repository's permissions while handling fork content, so uploads from them are rejected unless allowed here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/repositoryName" },
+        "allowEvents": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": { "enum": ["pull_request_target", "workflow_run"] }
+        }
+      }
+    },
+    "applicationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+    },
+    "channelPattern": {
+      "description": "A Channel name, or a prefix ending in * such as pr/*.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._/-]+\\*?$|^\\*$"
+    },
+    "webhook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format"],
+      "properties": {
+        "format": { "enum": ["slack", "discord", "json"] },
+        "products": {
+          "description": "Application IDs to send for. Omit for every Product.",
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/applicationId" }
+        },
+        "channels": {
+          "description": "Channel patterns to send for. Omit for every Channel.",
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/channelPattern" }
+        }
+      }
+    },
+    "productOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "private": {
+          "description": "Makes a public repository's Product private. A private repository's Product cannot be made public (ADR 0010).",
+          "const": true
+        },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "icon": {
+          "description": "An https URL of a square PNG used instead of the icon read from the APK.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "retention": { "$ref": "#/$defs/retention" }
+      }
+    },
+    "retention": {
+      "description": "Overrides for docs/design.md#retention. The newest Build of every open Channel is always kept.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "buildDays": { "type": "integer", "minimum": 1 },
+        "pullRequestBuildDays": { "type": "integer", "minimum": 1 },
+        "closedPullRequestHours": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
