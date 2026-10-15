@@ -61,6 +61,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/b/{buildId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Build page.
+         * @description Server-rendered HTML (docs/design.md#build-pages): the Build with its QR code and install button, or its expired state. A Build of a Private product gets a sign-in placeholder (403) until milestone 2, and an unknown ID a not-found page (404). Served with a Content Security Policy that allows nothing beyond the page itself.
+         */
+        get: operations["getBuildPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/b/{buildId}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Build's APK.
+         * @description Streams the APK as an attachment. Supports a single byte range with If-Range, so interrupted downloads resume; a range against a file that has since been replaced gets the whole file. Unavailable for expired Builds and Private products.
+         */
+        get: operations["downloadBuild"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b/{buildId}/qr.svg": {
         parameters: {
             query?: never;
@@ -90,7 +130,7 @@ export interface paths {
         };
         /**
          * The Build's app icon.
-         * @description The icon the Action uploaded, kept after the Build expires. A later attempt of the run may replace it.
+         * @description The icon the Action uploaded, or the Product's icon from the deployment config, kept after the Build expires. A later attempt of the run may replace it.
          */
         get: operations["getBuildIcon"];
         put?: never;
@@ -298,6 +338,95 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UploadedBuild"];
                 };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getBuildPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                buildId: components["schemas"]["BuildId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Build page, available or expired. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description The Build belongs to a Private product. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+            /** @description There is no such Build. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
+                };
+            };
+        };
+    };
+    downloadBuild: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string;
+                "If-Range"?: string;
+            };
+            path: {
+                buildId: components["schemas"]["BuildId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The whole APK. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.android.package-archive": string;
+                };
+            };
+            /** @description The requested range of the APK. */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.android.package-archive": string;
+                };
+            };
+            /** @description The APK matches If-None-Match. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The range lies outside the APK. */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             default: components["responses"]["Error"];
         };

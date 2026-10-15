@@ -9,6 +9,9 @@ import { claimResync, resyncInstallations } from "./github/installations";
 import { updatePullRequestComment, type CommentTarget } from "./github/pull-request-comment";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
 import { r2Presigner, type Presigner } from "./presign";
+import { loadBuildPage } from "./build-page/model";
+import { PAGE_SCRIPT, renderBuildPage } from "./build-page/render";
+import { serveDownload } from "./download";
 import { qrSvg } from "./qr";
 import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
 
@@ -121,8 +124,18 @@ export function createApp(deps: Dependencies) {
   app.get("/b/:buildId/icon", async (c) => {
     const buildId = c.req.param("buildId");
     const build = BUILD_ID.test(buildId)
-      ? await c.env.DB.prepare("SELECT icon_key FROM builds WHERE id = ?").bind(buildId).first<{ icon_key: string | null }>()
+      ? await c.env.DB.prepare("SELECT application_id, icon_key FROM builds WHERE id = ?").bind(buildId).first<{ application_id: string; icon_key: string | null }>()
       : null;
+    // A Product's configured icon replaces the APK's, served from here so Build pages stay same-origin.
+    const override = build && config.products?.[build.application_id]?.icon;
+    if (override) {
+      const upstream = await fetch(override, { cf: { cacheTtl: 3600, cacheEverything: true } });
+      if (!upstream.ok || !upstream.body) throw new ApiError(404, "not_found", `Build ${buildId}'s configured icon is unavailable.`);
+      return c.body(upstream.body, 200, {
+        "content-type": upstream.headers.get("content-type") ?? "image/png",
+        "cache-control": "public, max-age=3600",
+      });
+    }
     const icon = build?.icon_key ? await c.env.BUILDS.get(build.icon_key) : null;
     if (!icon) throw new ApiError(404, "not_found", `Build ${buildId} has no icon.`);
     return c.body(icon.body, 200, {
@@ -131,6 +144,21 @@ export function createApp(deps: Dependencies) {
       etag: icon.httpEtag,
     });
   });
+
+  // The Build page (docs/design.md#build-pages). Every state renders here: available, expired, private
+  // and unknown, so a link always lands on a page rather than an error body.
+  app.get("/b/:buildId", async (c) => {
+    const page = renderBuildPage(await loadBuildPage(c.env.DB, c.req.param("buildId")), { baseUrl: config.url });
+    return c.html(page.html, page.status, {
+      "cache-control": "public, max-age=60",
+      "content-security-policy": await pageContentSecurityPolicy(),
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-robots-tag": "noindex",
+    });
+  });
+
+  app.on(["GET", "HEAD"], "/b/:buildId/download", (c) => serveDownload(c.env, c.req.param("buildId"), c.req.raw));
 
   app.notFound((c) => c.json<ErrorBody>({ code: "not_found", message: "Not found" }, 404));
 
@@ -152,6 +180,25 @@ async function refreshComment(deps: Dependencies, env: Env, target: CommentTarge
   } catch (error) {
     console.error(`Updating the comment on ${target.repository}#${target.pullRequest} failed:`, error);
   }
+}
+
+let contentSecurityPolicy: Promise<string> | undefined;
+
+/** Nothing but the page itself: inline styles, its one script by hash, and same-origin images. */
+function pageContentSecurityPolicy(): Promise<string> {
+  contentSecurityPolicy ??= crypto.subtle.digest("SHA-256", new TextEncoder().encode(PAGE_SCRIPT)).then((digest) => {
+    const hash = btoa(String.fromCharCode(...new Uint8Array(digest)));
+    return [
+      "default-src 'none'",
+      "style-src 'unsafe-inline'",
+      `script-src 'sha256-${hash}'`,
+      "img-src 'self' data:",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+    ].join("; ");
+  });
+  return contentSecurityPolicy;
 }
 
 /** Shows a newly confirmed Build in its pull request's comment, if it is on a Pull request channel. */

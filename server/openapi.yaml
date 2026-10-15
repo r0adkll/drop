@@ -73,6 +73,86 @@ paths:
                 $ref: "#/components/schemas/UploadedBuild"
         default:
           $ref: "#/components/responses/Error"
+  /b/{buildId}:
+    get:
+      operationId: getBuildPage
+      summary: The Build page.
+      description: >
+        Server-rendered HTML (docs/design.md#build-pages): the Build with its QR code and install
+        button, or its expired state. A Build of a Private product gets a sign-in placeholder (403)
+        until milestone 2, and an unknown ID a not-found page (404). Served with a Content Security
+        Policy that allows nothing beyond the page itself.
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+      responses:
+        "200":
+          description: The Build page, available or expired.
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: The Build belongs to a Private product.
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: There is no such Build.
+          content:
+            text/html:
+              schema:
+                type: string
+  /b/{buildId}/download:
+    get:
+      operationId: downloadBuild
+      summary: The Build's APK.
+      description: >
+        Streams the APK as an attachment. Supports a single byte range with If-Range, so interrupted
+        downloads resume; a range against a file that has since been replaced gets the whole file.
+        Unavailable for expired Builds and Private products.
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+            example: bytes=1048576-
+        - name: If-Range
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The whole APK.
+          content:
+            application/vnd.android.package-archive:
+              schema:
+                type: string
+                format: binary
+        "206":
+          description: The requested range of the APK.
+          content:
+            application/vnd.android.package-archive:
+              schema:
+                type: string
+                format: binary
+        "304":
+          description: The APK matches If-None-Match.
+        "416":
+          description: The range lies outside the APK.
+        default:
+          $ref: "#/components/responses/Error"
   /b/{buildId}/qr.svg:
     get:
       operationId: getBuildQrCode
@@ -100,8 +180,8 @@ paths:
       operationId: getBuildIcon
       summary: The Build's app icon.
       description: >
-        The icon the Action uploaded, kept after the Build expires. A later attempt of the run may
-        replace it.
+        The icon the Action uploaded, or the Product's icon from the deployment config, kept after
+        the Build expires. A later attempt of the run may replace it.
       parameters:
         - name: buildId
           in: path

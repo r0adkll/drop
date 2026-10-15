@@ -113,7 +113,20 @@ these rules.
   and their QR codes stay sparse.
 - The page uses system fonts and inline CSS, follows the device's light or dark theme, makes no
   third-party requests, and carries Open Graph tags (title, description, app icon) for link
-  previews. The Worker draws the QR code.
+  previews. The Worker draws the QR code. Its Content Security Policy allows only the page itself:
+  inline styles, its one script by hash, and same-origin images. A Product's configured icon is
+  therefore served through `/b/<id>/icon` rather than linked directly. Build pages ask search
+  engines not to index them.
+- The phone layout applies below 720px wide, chosen by a media query rather than the user agent.
+- Install and Download APK fetch `/b/<id>/download`, which supports a single byte range with
+  `If-Range`, so an interrupted download resumes unless a later attempt has replaced the file.
+  Expired Builds and Private products have no download.
+- Times are rendered in UTC and rewritten in the Tester's time zone by the page's script.
+- An expired page shows when the Build was deleted and why. When there is nothing to offer instead
+  (no Build on the Channel, or the Product has no default Channel), it says so in a sentence.
+- Milestone 1 serves Public products only: a Build of a Private product gets a page saying it needs
+  sign-in, which reveals nothing about the Build, and an unknown ID gets a not-found page. Both are
+  minimal placeholders that still need a design pass (AGENTS.md, *Design before UI*).
 
 ## SDK
 
