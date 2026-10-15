@@ -52,13 +52,13 @@ A person, identified by their GitHub account, who may install Builds of a Produc
 _Avoid_: User, member
 
 **Allowed repository**:
-A GitHub repository that may upload Builds to a deployment, because the deployment lists it or its
-whole Owner.
+A GitHub repository that may upload Builds to a deployment, because its Owner is listed and has
+installed the deployment's GitHub App on it.
 _Avoid_: Source, trusted repo
 
 **Owner**:
-A GitHub user or organization that a deployment lists whole, so that all of its repositories are
-Allowed repositories.
+A GitHub user or organization that a deployment's config lists, so that the repositories it
+installs the deployment's GitHub App on are Allowed repositories.
 _Avoid_: Tenant, account
 
 **Public product**:

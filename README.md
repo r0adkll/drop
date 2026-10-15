@@ -22,25 +22,27 @@ Android only. iOS is deferred to a later iteration; desktop platforms are out of
 | SDK | Kotlin Multiplatform modules (Android target only) an app adds to its internal builds to check for, download and install updates ([ADR 0012](docs/adr/0012-kmp-sdk-android-only.md)) |
 | Gradle plugin | Adds the SDK to internal variants, generates its configuration and stamps each build with its channel and CI run ([ADR 0013](docs/adr/0013-stamped-build-identity.md)) |
 
-Each deployment of Drop accepts uploads only from the GitHub accounts and repositories its config
-lists; anyone can deploy their own ([ADR 0004](docs/adr/0004-explicit-source-list.md)). Products from public repositories are
+Each deployment of Drop accepts uploads only from the GitHub accounts its config lists, and
+within them only from the repositories they install the deployment's GitHub App on; anyone can
+deploy their own ([ADR 0004](docs/adr/0004-explicit-source-list.md)). Products from public repositories are
 public; private ones require GitHub sign-in and read access to the repository
 ([ADR 0003](docs/adr/0003-github-only-identity.md), [ADR 0010](docs/adr/0010-github-app-for-access.md)).
 ## Setting up a repository (planned)
 
-The deployment's `drop.config.json` lists which accounts and repositories may upload:
+The deployment's `drop.config.json` lists the accounts it trusts:
 
 ```jsonc
 {
   "url": "https://drop.example.com",
-  "repositories": [
-    "your-org",           // every repository in this account
-    "you/another-app"     // or a single repository
-  ]
+  "owners": ["your-org", "you"]
 }
 ```
 
-A workflow in a listed repository uploads with the Drop Action. Its only setup is permission to
+`npm run setup` records each account's numeric ID in `drop.config.lock.json`, which you check in.
+Each listed account then installs the deployment's GitHub App, choosing all of its repositories or
+only some, in GitHub's settings. Adding or removing a repository needs no redeploy.
+
+A workflow in one of those repositories uploads with the Drop Action. Its only setup is permission to
 request a GitHub OIDC token; there are no secrets to store:
 
 ```yaml
