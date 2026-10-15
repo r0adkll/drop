@@ -137,3 +137,9 @@ CREATE TABLE installation_repositories (
   full_name TEXT NOT NULL,
   PRIMARY KEY (installation_id, repository_id)
 );
+
+-- When background jobs last ran, so work triggered by requests can be rate-limited across isolates.
+CREATE TABLE sync_state (
+  name TEXT PRIMARY KEY NOT NULL,
+  synced_at INTEGER NOT NULL
+);

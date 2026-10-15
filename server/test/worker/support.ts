@@ -75,6 +75,7 @@ export async function createTestApp(overrides: Partial<Dependencies> = {}) {
     allowedRepositories: () => allowAll,
     verifyToken: createTokenVerifier({ audience: AUDIENCE, fetch: keys.fetch, now: () => now }),
     presigner: () => r2Presigner({ accountId: "test-account", accessKeyId: "test-key", secretAccessKey: "test-secret", bucket: "drop-builds" }),
+    github: () => undefined,
     now: () => now,
     ...overrides,
   });

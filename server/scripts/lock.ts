@@ -3,6 +3,8 @@
 
 export interface LockFile {
   owners: Record<string, number>;
+  /** The deployment's GitHub App, written by `npm run setup` once it has created it. */
+  app?: { id: number; slug: string };
 }
 
 /** Problems with a lockfile against the config's Owners and repository exceptions. */
@@ -14,6 +16,9 @@ export function lockErrors(config: { owners: string[]; repositories?: Record<str
   }
   for (const owner of Object.keys(lock.owners ?? {})) {
     if (!config.owners.includes(owner)) errors.push(`drop.config.lock.json lists "${owner}", which is not an Owner in drop.config.json; run \`npm run setup\` in server/.`);
+  }
+  if (lock.app !== undefined && (!Number.isSafeInteger(lock.app?.id) || lock.app.id <= 0 || typeof lock.app.slug !== "string" || lock.app.slug === "")) {
+    errors.push("drop.config.lock.json's app must be { id, slug } as `npm run setup` writes it.");
   }
   const listed = new Set(config.owners.map((owner) => owner.toLowerCase()));
   for (const repository of Object.keys(config.repositories ?? {})) {
@@ -32,7 +37,8 @@ export type OwnerLookup = (login: string) => Promise<number>;
  * listed are dropped.
  */
 export async function resolveLock(owners: string[], existing: LockFile | undefined, lookup: OwnerLookup, refresh = false): Promise<{ lock: LockFile; resolved: string[] }> {
-  const lock: LockFile = { owners: {} };
+  // The App is created once and kept; resolving Owners never changes it.
+  const lock: LockFile = { owners: {}, ...(existing?.app ? { app: existing.app } : {}) };
   const resolved: string[] = [];
   for (const owner of owners) {
     const locked = existing?.owners[owner];

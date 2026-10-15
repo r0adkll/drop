@@ -68,6 +68,12 @@ describe("drop.config.lock.json", () => {
     expect(lockErrors(config, { owners: { "your-org": 1, you: 2, gone: 3 } })).toEqual([expect.stringContaining('lists "gone"')]);
   });
 
+  it("accepts the GitHub App setup records and rejects a malformed one", () => {
+    const config = { owners: ["your-org"] };
+    expect(lockErrors(config, { owners: { "your-org": 1 }, app: { id: 4242, slug: "drop-example" } })).toEqual([]);
+    expect(lockErrors(config, { owners: { "your-org": 1 }, app: { id: 0, slug: "" } })).toEqual([expect.stringContaining("app must be")]);
+  });
+
   it("flags exceptions for repositories outside the Owners", () => {
     const config = { owners: ["your-org"], repositories: { "Your-Org/app": {}, "someone/else": {} } };
     expect(lockErrors(config, { owners: { "your-org": 1 } })).toEqual([expect.stringContaining('"someone/else" has no effect')]);
@@ -81,6 +87,12 @@ describe("resolveLock", () => {
     const { lock, resolved } = await resolveLock(["your-org", "newcomer"], { owners: { "your-org": 1, gone: 9 } }, lookup);
     expect(lock).toEqual({ owners: { "your-org": 1, newcomer: 33 } });
     expect(resolved).toEqual(["newcomer"]);
+  });
+
+  it("keeps the GitHub App", async () => {
+    const app = { id: 4242, slug: "drop-example" };
+    const { lock } = await resolveLock(["your-org"], { owners: { "your-org": 1 }, app }, lookup);
+    expect(lock).toEqual({ owners: { "your-org": 1 }, app });
   });
 
   it("looks every Owner up again on refresh", async () => {

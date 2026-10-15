@@ -49,6 +49,8 @@ export interface DropConfig {
  */
 export interface DropLock {
   owners: Record<OwnerName, number>;
+  /** The deployment's GitHub App, absent until `npm run setup` has created it. */
+  app?: { id: number; slug: string };
 }
 
 export const config = rawConfig as DropConfig;

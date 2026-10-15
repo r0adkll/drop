@@ -53,12 +53,19 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   secrets. Verify webhooks with the `X-Hub-Signature-256` HMAC.
 - It must be installable by other accounts so a deployment can list several, which lets strangers
   install it too; ignore installations and webhooks from accounts whose ID isn't a locked Owner.
-- Drop learns which repositories an installation covers only from `installation` and
-  `installation_repositories` webhooks. With *All repositories* selected Drop needs no list, so it
-  doesn't depend on whether `installation.created` includes one (*unverified*). Switching from all to
-  selected reports only the repositories removed (*unverified*), and a missed delivery leaves D1
-  stale; milestone 1 has no resync. Re-saving the selection, or reinstalling the App, sends fresh
-  events.
+- Drop learns which repositories an installation covers from `installation` and
+  `installation_repositories` webhooks, and from a resync that lists `GET /app/installations` and,
+  for *Only select repositories*, `GET /installation/repositories`. Webhooks alone fall short:
+  switching from all to selected reports only the repositories removed (*unverified*), and a missed
+  delivery leaves D1 stale. The resync runs hourly from the Cron Trigger and when an upload is denied
+  for a missing installation or repository, at most once a minute. With *All repositories* selected
+  Drop needs no list, so it doesn't depend on whether `installation.created` includes one
+  (*unverified*).
+- A suspended installation can't get an access token, so the resync keeps its last known
+  repositories and the allow-list refuses its uploads until it is unsuspended.
+- GitHub issues the App's private key as PKCS#1 (`BEGIN RSA PRIVATE KEY`), which WebCrypto can't
+  import; the Worker wraps it in PKCS#8. App JWTs are backdated 60 seconds and live 9 minutes;
+  installation tokens last an hour and are reused until 5 minutes before they expire.
 - `GET https://api.github.com/users/<login>` returns the numeric `id` for organizations as well as
   users; unauthenticated calls are limited to 60 an hour, so `npm run setup` uses `GITHUB_TOKEN` or
   `gh auth token` when it can.

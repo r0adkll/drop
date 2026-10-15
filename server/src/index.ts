@@ -4,6 +4,8 @@ import { config, lock } from "./config";
 import { ApiError, type ErrorBody } from "./errors";
 import type { components } from "./generated/openapi";
 import { handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
+import { createGitHubApp, NO_APP, type GitHubApp } from "./github/client";
+import { claimResync, resyncInstallations } from "./github/installations";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
 import { r2Presigner, type Presigner } from "./presign";
 import { completeUpload, createUpload, parseCreateUpload } from "./uploads";
@@ -17,6 +19,8 @@ export interface Dependencies {
   allowedRepositories: (env: Env) => AllowedRepositories;
   verifyToken: TokenVerifier;
   presigner: (env: Env) => Presigner;
+  /** The deployment's GitHub App, or undefined until setup has created it and its key is set. */
+  github: (env: Env) => GitHubApp | undefined;
   now: () => number;
 }
 
@@ -58,6 +62,7 @@ export function createApp(deps: Dependencies) {
         presigner: deps.presigner(c.env),
         now: deps.now(),
         waitUntil: waitUntil(c),
+        resyncInstallations: () => resyncIfDue(deps, c.env),
       },
       parseCreateUpload(body),
     );
@@ -102,9 +107,60 @@ export function createApp(deps: Dependencies) {
   return app;
 }
 
+/** Resyncs installations unless another request did within the last minute. */
+async function resyncIfDue(deps: Dependencies, env: Env): Promise<boolean> {
+  const github = deps.github(env);
+  if (!github || !(await claimResync(env.DB, deps.now()))) return false;
+  try {
+    await resyncInstallations(env.DB, github, deps.allowList.owners, deps.now());
+    return true;
+  } catch (error) {
+    console.error("Resyncing GitHub App installations failed:", error);
+    return false;
+  }
+}
+
+/** The Cron Trigger's work. Retention (docs/design.md#retention) is not implemented yet. */
+export async function runScheduled(deps: Dependencies, env: Env): Promise<void> {
+  const github = deps.github(env);
+  if (github) {
+    // Hourly, whatever the rate limit says; recording it keeps request-triggered resyncs spaced.
+    await claimResync(env.DB, deps.now());
+    await resyncInstallations(env.DB, github, deps.allowList.owners, deps.now());
+  } else {
+    throw new Error(`Can't resync GitHub App installations: ${gitHubAppProblem(env)}`);
+  }
+  // TODO: retention: delete expired Builds' files, abandoned `uploads` rows (older than the upload URL
+  // lifetime) and their R2 objects, and Pull request channels 24 hours after they end.
+}
+
+// One client per App and key for the isolate's lifetime, so its JWT and installation tokens are reused.
+const gitHubApps = new Map<string, GitHubApp>();
+
+function gitHubAppProblem(env: Env): string {
+  if (!lock.app) return NO_APP;
+  return "the GITHUB_APP_PRIVATE_KEY secret is not set; add it with `wrangler secret put GITHUB_APP_PRIVATE_KEY`.";
+}
+
+function deploymentGitHubApp(env: Env): GitHubApp | undefined {
+  const appId = lock.app?.id;
+  const privateKey = env.GITHUB_APP_PRIVATE_KEY;
+  if (!appId || !privateKey) {
+    console.warn(`The GitHub App is unavailable: ${gitHubAppProblem(env)}`);
+    return undefined;
+  }
+  const key = `${appId}:${privateKey}`;
+  let github = gitHubApps.get(key);
+  if (!github) {
+    github = createGitHubApp({ appId, privateKey });
+    gitHubApps.set(key, github);
+  }
+  return github;
+}
+
 const allowList: AllowList = { owners: lock.owners, exceptions: config.repositories };
 
-export const app = createApp({
+const productionDependencies: Dependencies = {
   allowList,
   allowedRepositories: (env) => installationAllowedRepositories(env.DB, allowList),
   // Module scope, so the GitHub key set is cached for the isolate's lifetime.
@@ -116,14 +172,15 @@ export const app = createApp({
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       bucket: env.R2_BUCKET_NAME,
     }),
+  github: deploymentGitHubApp,
   now: Date.now,
-});
+};
+
+export const app = createApp(productionDependencies);
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller, _env, _ctx) {
-    // Retention (docs/design.md#retention) is not implemented yet.
-    // TODO: also delete abandoned `uploads` rows (older than the upload URL lifetime) and their R2
-    // objects, which completeUpload never reached.
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(runScheduled(productionDependencies, env));
   },
 } satisfies ExportedHandler<Env>;

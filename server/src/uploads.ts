@@ -136,13 +136,21 @@ export interface UploadContext {
   now: number;
   /** Runs work after the response, such as deleting replaced files. */
   waitUntil: (promise: Promise<unknown>) => void;
+  /**
+   * Rebuilds the installation record from GitHub, rate-limited; true when it ran. A denial may only
+   * mean a webhook was missed, so a denied upload resyncs and checks once more.
+   */
+  resyncInstallations?: () => Promise<boolean>;
 }
 
 export async function createUpload(ctx: UploadContext, request: CreateUploadRequest): Promise<CreateUploadResponse> {
   const { env, claims, now } = ctx;
   const db = env.DB;
 
-  const decision = await ctx.allowedRepositories.check(claims);
+  let decision = await ctx.allowedRepositories.check(claims);
+  if (!decision.allowed && decision.code !== "owner_not_listed" && (await ctx.resyncInstallations?.())) {
+    decision = await ctx.allowedRepositories.check(claims);
+  }
   if (!decision.allowed) throw new ApiError(403, decision.code, decision.reason);
   if (RESTRICTED_EVENTS.has(claims.eventName) && !(decision.allowEvents as readonly string[]).includes(claims.eventName)) {
     throw new ApiError(403, "event_not_allowed", `${claims.repository} may not upload from ${claims.eventName} runs.`);

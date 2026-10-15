@@ -1,24 +1,23 @@
 // The GitHub App's webhooks, as far as Drop's allow-list needs them: which repositories each listed
 // Owner's installation covers (ADR 0004).
 //
-// TODO: Drop learns about installations only from these webhooks. A missed delivery leaves D1 stale,
-// and switching an installation from all repositories to selected ones reports only the
-// repositories removed, so the selection can't be rebuilt from it. Milestone 1 has no resync; one
-// would list the installation's repositories through the GitHub API.
+// Webhooks keep D1 current between resyncs. A missed delivery, or a switch from all repositories to
+// selected ones (which reports only the repositories removed), is repaired by the installation
+// resync in github/installations.ts.
 
 export interface WebhookAccount {
   id: number;
   login: string;
 }
 
-interface WebhookInstallation {
+export interface WebhookInstallation {
   id: number;
   account: WebhookAccount;
   repository_selection: "all" | "selected";
   suspended_at?: string | null;
 }
 
-interface WebhookRepository {
+export interface WebhookRepository {
   id: number;
   full_name: string;
 }
@@ -101,7 +100,7 @@ export async function handleWebhook(
   return "applied";
 }
 
-function isInstallation(value: unknown): value is WebhookInstallation {
+export function isInstallation(value: unknown): value is WebhookInstallation {
   const installation = value as WebhookInstallation | undefined;
   return (
     typeof installation?.id === "number" &&
@@ -112,7 +111,7 @@ function isInstallation(value: unknown): value is WebhookInstallation {
 }
 
 /** By locked ID only. A listed login with another ID is someone else using that name. */
-function isListedOwner(owners: Record<string, number>, account: WebhookAccount): boolean {
+export function isListedOwner(owners: Record<string, number>, account: WebhookAccount): boolean {
   if (Object.values(owners).includes(account.id)) return true;
   const sameName = Object.entries(owners).find(([login]) => login.toLowerCase() === account.login.toLowerCase());
   if (sameName) {
@@ -124,7 +123,7 @@ function isListedOwner(owners: Record<string, number>, account: WebhookAccount):
 }
 
 /** Records an installation, replacing any earlier one by the same account whose deletion was missed. */
-function upsertInstallation(db: D1Database, installation: WebhookInstallation, selection: "all" | "selected", now: number): D1PreparedStatement[] {
+export function upsertInstallation(db: D1Database, installation: WebhookInstallation, selection: "all" | "selected", now: number): D1PreparedStatement[] {
   const suspendedAt = installation.suspended_at ? Date.parse(installation.suspended_at) || now : null;
   return [
     db
@@ -143,7 +142,7 @@ function upsertInstallation(db: D1Database, installation: WebhookInstallation, s
   ];
 }
 
-function addRepository(db: D1Database, installationId: number, repository: WebhookRepository): D1PreparedStatement {
+export function addRepository(db: D1Database, installationId: number, repository: WebhookRepository): D1PreparedStatement {
   return db
     .prepare(
       `INSERT INTO installation_repositories (installation_id, repository_id, full_name) VALUES (?, ?, ?)
