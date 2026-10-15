@@ -8,7 +8,8 @@ import { createGitHubApp, NO_APP, type GitHubApp } from "./github/client";
 import { claimResync, resyncInstallations } from "./github/installations";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
 import { r2Presigner, type Presigner } from "./presign";
-import { completeUpload, createUpload, parseCreateUpload } from "./uploads";
+import { qrSvg } from "./qr";
+import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
 
 type Health = components["schemas"]["Health"];
 type WebhookResult = components["schemas"]["WebhookResult"];
@@ -96,6 +97,32 @@ export function createApp(deps: Dependencies) {
     }
   });
 
+  // A Build's QR code never changes: it encodes the Build page URL, which is fixed by its ID. It is
+  // served for expired Builds too, so old comments keep their images.
+  app.get("/b/:buildId/qr.svg", async (c) => {
+    const buildId = await existingBuild(c.env, c.req.param("buildId"));
+    return c.body(qrSvg(buildUrl(buildId)), 200, {
+      "content-type": "image/svg+xml",
+      "cache-control": "public, max-age=31536000, immutable",
+    });
+  });
+
+  // Icons outlive their Build's file (docs/design.md#retention). A later attempt of the run may
+  // bring a new icon under the same ID, so they are cached for an hour, not forever.
+  app.get("/b/:buildId/icon", async (c) => {
+    const buildId = c.req.param("buildId");
+    const build = BUILD_ID.test(buildId)
+      ? await c.env.DB.prepare("SELECT icon_key FROM builds WHERE id = ?").bind(buildId).first<{ icon_key: string | null }>()
+      : null;
+    const icon = build?.icon_key ? await c.env.BUILDS.get(build.icon_key) : null;
+    if (!icon) throw new ApiError(404, "not_found", `Build ${buildId} has no icon.`);
+    return c.body(icon.body, 200, {
+      "content-type": build!.icon_key!.endsWith(".webp") ? "image/webp" : "image/png",
+      "cache-control": "public, max-age=3600",
+      etag: icon.httpEtag,
+    });
+  });
+
   app.notFound((c) => c.json<ErrorBody>({ code: "not_found", message: "Not found" }, 404));
 
   app.onError((err, c) => {
@@ -105,6 +132,13 @@ export function createApp(deps: Dependencies) {
   });
 
   return app;
+}
+
+/** The ID of a confirmed Build, expired or not; 404 otherwise. */
+async function existingBuild(env: Env, buildId: string): Promise<string> {
+  const found = BUILD_ID.test(buildId) && (await env.DB.prepare("SELECT 1 FROM builds WHERE id = ?").bind(buildId).first());
+  if (!found) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
+  return buildId;
 }
 
 /** Resyncs installations unless another request did within the last minute. */

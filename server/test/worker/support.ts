@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import type { AllowDecision, AllowedRepositories } from "../../src/allowed-repositories";
 import { createApp, type Dependencies } from "../../src/index";
@@ -107,4 +108,78 @@ export function uploadRequest(applicationId: string, overrides: Record<string, u
     commit: { sha: "9f3c2a1".padEnd(40, "0"), message: "Cache map tiles" },
     ...overrides,
   };
+}
+
+export interface SeededBuild {
+  id: string;
+  applicationId: string;
+  channelId: number;
+}
+
+let seededIds = 0;
+/** A Build ID no other seeded Build uses. */
+export function uniqueBuildId(): string {
+  seededIds += 1;
+  return `S${seededIds.toString(36).padStart(5, "0")}${Math.floor(Math.random() * 36 * 36).toString(36).padStart(2, "0")}`.slice(0, 8);
+}
+
+/**
+ * Writes a confirmed Build straight to D1, creating its Product and Channel if needed, for tests that
+ * start from Builds rather than uploads.
+ */
+export async function seedBuild(
+  options: {
+    applicationId?: string;
+    repositoryId?: number;
+    repository?: string;
+    channel?: string;
+    pullRequest?: number | null;
+    isDefault?: boolean;
+    runId?: number;
+    uploadedAt?: number;
+    label?: string | null;
+    versionName?: string | null;
+    versionCode?: number;
+    iconKey?: string | null;
+    deletedAt?: number | null;
+    workflow?: string;
+    runNumber?: number;
+    commitSha?: string;
+  } = {},
+): Promise<SeededBuild> {
+  const db = env.DB;
+  const applicationId = options.applicationId ?? uniqueApplicationId();
+  const channel = options.channel ?? "main";
+  const pullRequest = options.pullRequest ?? (/^pr\/(\d+)$/.exec(channel) ? Number(/^pr\/(\d+)$/.exec(channel)![1]) : null);
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO products (application_id, repository_id, repository, repository_visibility, created_at)
+         VALUES (?, ?, ?, 'public', 0) ON CONFLICT (application_id) DO NOTHING`,
+      )
+      .bind(applicationId, options.repositoryId ?? 1001, options.repository ?? "your-org/trailhead"),
+    db
+      .prepare(
+        `INSERT INTO channels (application_id, name, is_default, pull_request, created_at) VALUES (?, ?, ?, ?, 0)
+         ON CONFLICT (application_id, name) DO NOTHING`,
+      )
+      .bind(applicationId, channel, options.isDefault ?? channel === "main" ? 1 : 0, pullRequest),
+  ]);
+  const { id: channelId } = (await db.prepare("SELECT id FROM channels WHERE application_id = ? AND name = ?").bind(applicationId, channel).first<{ id: number }>())!;
+  const id = uniqueBuildId();
+  await db
+    .prepare(
+      `INSERT INTO builds (id, application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref,
+         commit_sha, built_sha, version_code, version_name, label, signer_sha256, file_size, file_sha256, file_key,
+         icon_key, uploaded_at, deleted_at)
+       VALUES (?, ?, ?, ?, 1, ?, ?, 'pull_request', 'refs/pull/1/merge', ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id, applicationId, channelId, options.runId ?? 11384729304, options.workflow ?? "Android", options.runNumber ?? 1876,
+      options.commitSha ?? "9f3c2a1".padEnd(40, "0"), "a".repeat(40), options.versionCode ?? 4127,
+      options.versionName === undefined ? "2.8.0" : options.versionName, options.label === undefined ? "Trailhead" : options.label,
+      "3a".repeat(32), "b".repeat(64), `builds/${id}/1/app.apk`, options.iconKey ?? null, options.uploadedAt ?? NOW, options.deletedAt ?? null,
+    )
+    .run();
+  return { id, applicationId, channelId };
 }

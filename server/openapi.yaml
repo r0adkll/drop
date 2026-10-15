@@ -73,6 +73,55 @@ paths:
                 $ref: "#/components/schemas/UploadedBuild"
         default:
           $ref: "#/components/responses/Error"
+  /b/{buildId}/qr.svg:
+    get:
+      operationId: getBuildQrCode
+      summary: A QR code of the Build page URL.
+      description: >
+        Black on white with a quiet zone, for pull request comments and the Build page. Served for
+        expired Builds too; it never changes, so it may be cached forever.
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+      responses:
+        "200":
+          description: The QR code.
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Error"
+  /b/{buildId}/icon:
+    get:
+      operationId: getBuildIcon
+      summary: The Build's app icon.
+      description: >
+        The icon the Action uploaded, kept after the Build expires. A later attempt of the run may
+        replace it.
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+      responses:
+        "200":
+          description: The icon.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Error"
   /api/v1/github/webhook:
     post:
       operationId: receiveGitHubWebhook

@@ -189,4 +189,6 @@ the server themselves from the template.
 - The newest Build of every open Channel is always kept.
 - Other Builds are deleted 30 days after upload, or 7 days for Builds on a Pull request channel.
 - A Pull request channel and all its Builds are deleted 24 hours after its pull request closes.
+- Deleting a Build deletes its APK but keeps its icon, which is small, so its expired Build page
+  and the pull request comments that showed it still have an image.
 - Each rule can be overridden per Product in the deployment config.
