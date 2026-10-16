@@ -1,4 +1,6 @@
 [versions]
+# The SDK and Gradle plugin release; the plugin adds drop-android or drop-noop at this version.
+drop = "0.1.0-SNAPSHOT"
 agp = "9.4.1"
 kotlin = "2.4.21"
 coroutines = "1.11.0"
@@ -14,6 +16,7 @@ robolectric = "4.17"
 androidx-test-core = "1.7.0"
 
 [libraries]
+android-gradle-api = { module = "com.android.tools.build:gradle-api", version.ref = "agp" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

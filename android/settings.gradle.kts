@@ -2,6 +2,7 @@
 // generated from ../server/openapi.yaml; edit the document, not the client.
 
 pluginManagement {
+  includeBuild("plugin")
   repositories {
     google()
     mavenCentral()

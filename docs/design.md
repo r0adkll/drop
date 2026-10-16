@@ -36,12 +36,17 @@ the generated client.
 
 ## Gradle plugin
 
-- Adds the SDK to the variants it is enabled for and the no-op SDK to the rest, so
-  `REQUEST_INSTALL_PACKAGES` never reaches a store build.
-- Generates the SDK's configuration (the server URL) from the `drop {}` block. The Product needs no
-  setting: it is the app's own application ID ([ADR 0015](adr/0015-product-identity.md)).
-- Stamps the Product, Channel and GitHub run ID from the CI environment into the APK
-  ([ADR 0013](adr/0013-stamped-build-identity.md)).
+- Adds `drop-android` to the variants `drop { enableFor { … } }` selects (a predicate on the
+  variant's name, build type and flavors; by default the debug build type) and `drop-noop` to the
+  rest, so `REQUEST_INSTALL_PACKAGES` never reaches a store build.
+- Writes the SDK's configuration (`serverUrl`, and the `channel` a Build without a Stamp follows)
+  into the variant's manifest as meta-data, which `Drop(context)` reads; `Drop(context, config)`
+  remains for apps that configure Drop themselves. The Product needs no setting: it is the app's
+  own application ID ([ADR 0015](adr/0015-product-identity.md)).
+- Stamps the Channel and GitHub run ID from the CI environment into the same meta-data
+  ([ADR 0013](adr/0013-stamped-build-identity.md)), choosing the Channel as the upload Action does.
+  Both honour a job-level `DROP_CHANNEL` environment variable, so a workflow names a Channel once
+  and the APK and its upload agree; the Action warns when its `channel` input differs.
 - Optionally derives the version code from the commit count. Off by default; Drop does not depend
   on version codes ([ADR 0009](adr/0009-order-builds-by-run-id.md)).
 

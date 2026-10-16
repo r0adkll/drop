@@ -214,6 +214,17 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 
 ## Gradle plugin
 
+- The plugin is an included build (`android/plugin`), applied by the sample through
+  `pluginManagement { includeBuild("plugin") }`. It adds `com.r0adkll.drop:drop-android` or
+  `drop-noop` at its own version; inside this repository the sample substitutes the projects.
+- aapt2 compiles a meta-data value that fits an int as an int and a larger one, such as a GitHub run
+  ID, as a string, so the SDK reads every value with `toString()`.
+- The CI environment reaches the manifest task as inputs (`providers.environmentVariable`), which
+  keeps the configuration cache correct when they change.
+- `drop-core`'s generated client sits at `build/generated/openapi/src/commonMain/kotlin`, and AGP
+  looks for a `baselineProfiles` directory beside it, so `prepareAndroidMainArtProfile` must depend
+  on the generator.
+
 - Stamp values come from the CI environment: `GITHUB_RUN_ID`; `GITHUB_EVENT_NAME`; the pull request
   number from `GITHUB_REF` (`refs/pull/<n>/merge`); the default branch from the event payload at
   `GITHUB_EVENT_PATH` (`repository.default_branch`), compared with `GITHUB_REF_NAME`.

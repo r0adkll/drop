@@ -34,16 +34,23 @@ jobs:
       - name: Build and test
         run: >
           ./gradlew
+          :plugin:test
           :drop-core:testAndroidHostTest
           :drop-android:testDebugUnitTest
           :drop-android:assembleRelease
           :drop-noop:assembleRelease
           :sample:assembleDebug
+          :sample:assembleRelease
         env:
           # The sample's Update checks go to this deployment, when the repository sets one.
           DROP_SERVER: ${{ vars.DROP_SERVER }}
       - name: Check drop-noop's API matches drop-android's
         run: ./scripts/check-noop-api.sh
+      - name: Check store variants never ask to install packages
+        run: |
+          aapt2="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/aapt2"
+          "$aapt2" dump permissions sample/build/outputs/apk/debug/sample-debug.apk | grep -q REQUEST_INSTALL_PACKAGES
+          ! "$aapt2" dump permissions sample/build/outputs/apk/release/sample-release-unsigned.apk | grep -q REQUEST_INSTALL_PACKAGES
       - uses: actions/upload-artifact@v4
         with:
           name: sample-apk

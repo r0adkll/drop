@@ -32,10 +32,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.r0adkll.drop.Drop
-import com.r0adkll.drop.DropConfig
+import com.r0adkll.drop.DropManifest
 import com.r0adkll.drop.DropState
 import com.r0adkll.drop.ReinstallReason
-import com.r0adkll.drop.Stamp
 import com.r0adkll.drop.Update
 import com.r0adkll.drop.UpdateCheckResult
 import kotlinx.coroutines.launch
@@ -63,13 +62,16 @@ private fun SampleScreen(drop: Drop) {
     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
+    val context = LocalContext.current
+    val info = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
     Text("Drop Sample", style = MaterialTheme.typography.headlineSmall)
     Card(Modifier.fillMaxWidth()) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("This Build", style = MaterialTheme.typography.titleMedium)
-        Text("Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-        Text(if (BuildConfig.DROP_STAMP_CHANNEL != null) "Stamp: ${BuildConfig.DROP_STAMP_CHANNEL}, run ${BuildConfig.DROP_STAMP_RUN_ID}" else "No Stamp: follows main")
-        Text("Server: ${BuildConfig.DROP_SERVER_URL}", style = MaterialTheme.typography.bodySmall)
+        val config = remember { DropManifest.read(context) }
+        Text("Version ${info.versionName} (${info.longVersionCode})")
+        Text(config.stamp?.let { "Stamp: ${it.channel}, run ${it.runId}" } ?: "No Stamp: follows ${config.channel}")
+        Text("Server: ${config.serverUrl}", style = MaterialTheme.typography.bodySmall)
       }
     }
 
@@ -157,9 +159,3 @@ private fun describe(result: UpdateCheckResult): String = when (result) {
   UpdateCheckResult.UnknownProduct -> "The server has no Builds of this app yet."
   is UpdateCheckResult.Failed -> "The check failed: ${result.message}"
 }
-
-internal fun sampleConfig() = DropConfig(
-  serverUrl = BuildConfig.DROP_SERVER_URL,
-  channel = "main",
-  stamp = BuildConfig.DROP_STAMP_CHANNEL?.let { Stamp(channel = it, runId = BuildConfig.DROP_STAMP_RUN_ID) },
-)

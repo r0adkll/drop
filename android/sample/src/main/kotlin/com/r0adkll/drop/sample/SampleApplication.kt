@@ -6,7 +6,8 @@ import com.r0adkll.drop.Drop
 
 /** Holds the process's one Drop. */
 class SampleApplication : Application() {
-  val drop: Drop by lazy { Drop(this, sampleConfig()) }
+  // Reads the server URL and Stamp the Gradle plugin wrote into the manifest.
+  val drop: Drop by lazy { Drop(this) }
 
   companion object {
     fun drop(context: Context): Drop = (context.applicationContext as SampleApplication).drop

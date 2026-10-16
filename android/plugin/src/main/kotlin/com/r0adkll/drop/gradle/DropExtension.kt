@@ -1,0 +1,49 @@
+package com.r0adkll.drop.gradle
+
+import org.gradle.api.provider.Property
+import org.gradle.api.specs.Spec
+
+/**
+ * The `drop {}` block:
+ *
+ * ```
+ * drop {
+ *   serverUrl = "https://drop.example.com"
+ *   enableFor { it.flavorName == "alpha" }
+ * }
+ * ```
+ */
+public abstract class DropExtension {
+  /** The deployment's URL. Required for variants that get the real SDK. */
+  public abstract val serverUrl: Property<String>
+
+  /** The Channel a Build without a Stamp follows, such as a local build. Defaults to `main`. */
+  public abstract val channel: Property<String>
+
+  /**
+   * Sets each variant's version code to the number of commits in HEAD's history. Off by default;
+   * Drop orders Builds by run ID, not version code (ADR 0009). CI needs `fetch-depth: 0`.
+   */
+  public abstract val versionCodeFromCommits: Property<Boolean>
+
+  internal var enabled: Spec<DropVariant> = Spec { it.buildType == "debug" }
+
+  /**
+   * Which variants get the real SDK (drop-android); every other variant gets drop-noop, so
+   * REQUEST_INSTALL_PACKAGES never reaches a store build. Defaults to the debug build type.
+   */
+  public fun enableFor(spec: Spec<DropVariant>) {
+    enabled = spec
+  }
+}
+
+/** What [DropExtension.enableFor] decides on: one Android variant. */
+public data class DropVariant(
+  /** The variant's name, such as `alphaRelease`. */
+  val name: String,
+  val buildType: String?,
+  /** The combined flavor name, such as `alpha`, or null without flavors. */
+  val flavorName: String?,
+  /** Each flavor dimension's flavor. */
+  val productFlavors: Map<String, String>,
+)
