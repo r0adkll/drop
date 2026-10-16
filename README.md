@@ -27,7 +27,7 @@ within them only from the repositories they install the deployment's GitHub App 
 deploy their own ([ADR 0004](docs/adr/0004-explicit-source-list.md)). Products from public repositories are
 public; private ones require GitHub sign-in and read access to the repository
 ([ADR 0003](docs/adr/0003-github-only-identity.md), [ADR 0010](docs/adr/0010-github-app-for-access.md)).
-## Setting up a deployment (planned)
+## Setting up a deployment
 
 Your deployment is its own small, private repository that holds only configuration and deploys a
 pinned release of Drop ([ADR 0016](docs/adr/0016-config-only-deployment-repositories.md)). You need
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 21 }
       - run: ./gradlew assembleInternal
       - uses: r0adkll/drop/action@v0
@@ -93,6 +93,108 @@ jobs:
 ```
 
 How the server checks uploads is described in [`docs/design.md`](docs/design.md#upload-authentication).
+
+## Adding Drop to your app
+
+With the SDK, an installed Build finds newer Builds on its Channel and updates itself, and a closed
+pull request's Build is offered the default Channel's newest. It needs Android 8 (API 26) or later.
+
+**Sign every Build with one internal key.** Android updates an app only with a Build signed by the
+same key, and a CI runner makes a fresh debug key on every run, so debug-signed CI Builds can never
+update each other. Keep one internal keystore as a CI secret and sign every variant you distribute
+through Drop with it. Drop never holds or configures keys
+([ADR 0006](docs/adr/0006-signing-out-of-scope.md)). Builds from Google Play are re-signed by Play,
+so they can't update to or from Drop's.
+
+1. **Apply the Gradle plugin.** It gives the variants you choose the SDK and every other variant a
+   no-op with the same API, so the install permission never reaches a store build. Until the
+   Gradle Plugin Portal lists it, it resolves from Maven Central:
+
+   ```kotlin
+   // settings.gradle.kts
+   pluginManagement {
+     repositories {
+       gradlePluginPortal()
+       mavenCentral()
+       google()
+     }
+   }
+   ```
+
+   ```kotlin
+   // app/build.gradle.kts
+   plugins {
+     id("com.android.application")
+     id("com.r0adkll.drop") version "0.1.0"
+   }
+
+   drop {
+     serverUrl = "https://drop.example.com"
+     // Which variants get the SDK; the rest get the no-op. Default: the debug build type.
+     enableFor { it.flavorName == "internal" }
+   }
+
+   dependencies {
+     // The ready-made Update sheet (optional).
+     implementation("com.r0adkll.drop:drop-ui:0.1.0")
+   }
+   ```
+
+   On CI the plugin stamps each Build with its Channel and run, which is how Drop recognises an
+   installed Build. A local build has no Stamp and follows `drop { channel }` (default `main`).
+
+2. **Create one `Drop` per process** and check when it suits your app:
+
+   ```kotlin
+   class App : Application() {
+     val drop by lazy { Drop(this) } // reads the plugin's settings from the manifest
+   }
+
+   lifecycleScope.launch {
+     when (val result = app.drop.check()) {
+       is UpdateCheckResult.Available -> showUpdateBadge(result.update)
+       else -> Unit
+     }
+   }
+   ```
+
+   `drop.state` is a `StateFlow` (Update available, downloading, ready to install, installing,
+   failed) that survives process death, so a download that finished in the background is still
+   ready on the next launch. The SDK posts no notifications; your app decides how to prompt.
+
+3. **Show the Update sheet** when the tester acts. It offers the Update, asks for *Install
+   unknown apps* the first time, downloads, verifies and installs, and explains reinstalls, ended
+   pull requests and Google Play Protect's warning
+   ([design](docs/design.md#update-sheet)):
+
+   ```kotlin
+   // Compose: it inherits your MaterialTheme
+   if (showSheet) DropUpdateSheet(drop = app.drop, onDismiss = { showSheet = false })
+
+   // Views
+   activity.showDropUpdateSheet(app.drop)
+   ```
+
+   Or build your own UI from `check()`, `download()`, `canInstall()`,
+   `installPermissionIntent()` and `install()`.
+
+**Channels.** Runs on the default branch upload to `main` and pull requests to `pr/<number>`.
+Any other run names its Channel with a job-level `DROP_CHANNEL`, which both the upload Action and
+the plugin's Stamp read, so they agree:
+
+```yaml
+jobs:
+  beta:
+    env:
+      DROP_CHANNEL: beta
+```
+
+**Version codes.** Drop orders Builds by GitHub run, not version code
+([ADR 0009](docs/adr/0009-order-builds-by-run-id.md)). Android still refuses a lower version code,
+so an Update with one is offered as a reinstall. `drop { versionCodeFromCommits = true }` sets the
+version code to the commit count, which only grows (CI needs `fetch-depth: 0`).
+
+The [sample app](android/sample) shows the whole loop, and its CI uploads it to a deployment.
 
 There is no tester-side app for now: testers install from build pages and apps update themselves
 through the SDK ([ADR 0011](docs/adr/0011-no-tester-app-in-first-milestone.md)). Milestones,
