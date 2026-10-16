@@ -146,7 +146,8 @@ version code, all read on the device. It needs no sign-in in milestone 1 and is 
 - The answer is `up_to_date`, `update` (the newest newer Build with the installed Signer),
   `reinstall_required` (every newer Build is signed differently, so the newest is offered for a
   reinstall; [ADR 0006](adr/0006-signing-out-of-scope.md)), or `channel_ended` (the default
-  Channel's newest Build with the installed Signer, whatever its run ID, or none).
+  Channel's newest Build whatever its run ID: the installed Signer's newest, else the newest,
+  flagged for a reinstall, or none).
 - An Update describes what the Build page shows (name, version, headline, commit, pull request,
   size, SHA-256) plus its download URL and when that URL expires. For now the URL is the Build's
   `/download` route with an expiry an hour out; milestone 2 can swap in signed URLs without

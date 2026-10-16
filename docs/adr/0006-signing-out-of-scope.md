@@ -11,4 +11,6 @@ keys.
 Drop detects signer problems instead of preventing them. Each Build records its signing
 certificate's SHA-256, and an Update check offers only Builds signed by the same certificate as
 the installed one, answering that a reinstall is required when every newer Build is signed
-differently.
+differently. When a Pull request channel has ended, the default Channel's newest Build is offered
+the same way: the installed Signer's newest if there is one, else the newest, flagged as needing a
+reinstall, so a Tester on a differently signed pull request Build still has a way forward.

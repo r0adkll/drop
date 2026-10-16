@@ -99,7 +99,7 @@ describe("the Update check", () => {
     expect((await check({ applicationId, runId: 101 })).body).toMatchObject({ status: "reinstall_required", update: { requiresReinstall: "signer" } });
   });
 
-  it("sends a Build on an ended Channel to the default Channel's newest Build with its Signer", async () => {
+  it("sends a Build on an ended Channel to the default Channel's newest Build, preferring its Signer", async () => {
     const applicationId = uniqueApplicationId();
     const main = await seedBuild({ applicationId, runId: 90 });
     await seedBuild({ applicationId, runId: 95, signer: OTHER_SIGNER });
@@ -109,6 +109,17 @@ describe("the Update check", () => {
     expect((await check({ applicationId, channel: "pr/142", runId: 100 })).body).toMatchObject({
       status: "channel_ended",
       update: { buildId: main.id, channel: "main" },
+    });
+
+    // With no Build of the installed Signer there, the newest is offered for a reinstall.
+    const other = uniqueApplicationId();
+    await seedBuild({ applicationId: other, runId: 90, signer: OTHER_SIGNER });
+    const released = await seedBuild({ applicationId: other, runId: 91, signer: OTHER_SIGNER });
+    const debug = await seedBuild({ applicationId: other, channel: "pr/1256", runId: 100 });
+    await env.DB.prepare("UPDATE channels SET ended_at = ? WHERE id = ?").bind(NOW, debug.channelId).run();
+    expect((await check({ applicationId: other, channel: "pr/1256", runId: 100 })).body).toMatchObject({
+      status: "channel_ended",
+      update: { buildId: released.id, requiresReinstall: "signer" },
     });
 
     const lonely = uniqueApplicationId();

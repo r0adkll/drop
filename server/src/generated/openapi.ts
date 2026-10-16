@@ -231,7 +231,7 @@ export interface components {
         ChannelName: string;
         UpdateCheck: {
             /**
-             * @description `up_to_date`: no newer Build. `update`: `update` is newer, with the installed Signer. `channel_ended`: the Channel's pull request has closed; `update` is the newest Build with the installed Signer on the default Channel, to switch to, or null when there is none. `reinstall_required`: every newer Build has a different Signer; `update` is the newest of them.
+             * @description `up_to_date`: no newer Build. `update`: `update` is newer, with the installed Signer. `channel_ended`: the Channel's pull request has closed; `update` is the default Channel's newest Build to switch to (the installed Signer's newest, else the newest, flagged `requiresReinstall: signer`), or null when it has none. `reinstall_required`: every newer Build has a different Signer; `update` is the newest of them.
              * @enum {string}
              */
             status: "up_to_date" | "update" | "channel_ended" | "reinstall_required";

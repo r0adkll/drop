@@ -87,12 +87,13 @@ export async function checkForUpdate(db: D1Database, installed: InstalledBuild, 
   if (!channel) return { status: "up_to_date" };
 
   if (channel.ended_at !== null) {
-    // Switch to the default Channel's newest Build with the installed Signer, whatever its run ID.
+    // Switch to the default Channel's newest Build, whatever its run ID: the installed Signer's
+    // newest, or else the newest of all, flagged as needing a reinstall.
     const offered = await db
       .prepare(
         `SELECT ${BUILD_COLUMNS} FROM builds b JOIN channels c ON c.id = b.channel_id
-         WHERE c.application_id = ? AND c.is_default = 1 AND b.deleted_at IS NULL AND b.signer_sha256 = ?
-         ORDER BY b.run_id DESC, b.uploaded_at DESC LIMIT 1`,
+         WHERE c.application_id = ? AND c.is_default = 1 AND b.deleted_at IS NULL
+         ORDER BY b.signer_sha256 = ? DESC, b.run_id DESC, b.uploaded_at DESC LIMIT 1`,
       )
       .bind(installed.applicationId, installed.signer)
       .first<BuildRow>();
