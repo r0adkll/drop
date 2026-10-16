@@ -3,6 +3,7 @@
 
 import { ago, date, document, esc, footer, formatSize, icon, time, version, type RenderContext, type RenderedPage } from "../build-page/render";
 import { closedPullRequestHours } from "../config";
+import { DROP_ICON_SVG } from "../icon";
 import { qrSvg } from "../qr";
 import { buildDays, pullRequestBuildDays } from "../retention";
 import type { ChannelBuild, ChannelPageModel, ChannelSummary, ProductPageModel, ProductSummary } from "./model";
@@ -22,7 +23,7 @@ export function renderIndex(products: ProductSummary[], ctx: RenderContext): Ren
   const cards = products.map((product) => indexCard(product, ctx)).join("");
   const body =
     `<header class="head"><div class="wrap"><div class="hero">` +
-    `<p class="crumbs">${host}</p><h1>Apps</h1>` +
+    `<p class="brand"><span class="logo" aria-hidden="true">${DROP_ICON_SVG}</span>${host}</p><h1>Apps</h1>` +
     `<p class="lede">Test builds from CI. Scan a code with your Android phone, or open an app to see its channels.</p>` +
     `</div></div></header>` +
     `<main class="wrap site">${products.length > 0 ? `<div class="cards">${cards}</div>` : `<p class="muted">No apps have Builds here yet.</p>`}</main>` +
