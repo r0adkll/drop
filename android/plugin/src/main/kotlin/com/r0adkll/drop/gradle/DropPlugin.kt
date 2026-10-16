@@ -26,21 +26,28 @@ public class DropPlugin : Plugin<Project> {
 
       val components = project.extensions.getByType(ApplicationAndroidComponentsExtension::class.java)
       components.onVariants { variant ->
-        val selected = drop.enabled.isSatisfiedBy(
-          DropVariant(
-            name = variant.name,
-            buildType = variant.buildType,
-            flavorName = variant.flavorName?.takeIf { it.isNotEmpty() },
-            productFlavors = variant.productFlavors.toMap(),
-          ),
+        val dropVariant = DropVariant(
+          name = variant.name,
+          buildType = variant.buildType,
+          flavorName = variant.flavorName?.takeIf { it.isNotEmpty() },
+          productFlavors = variant.productFlavors.toMap(),
         )
+        val selected = drop.enabled.isSatisfiedBy(dropVariant)
         val module = if (selected) "drop-android" else "drop-noop"
         project.dependencies.add("${variant.name}Implementation", "com.r0adkll.drop:$module:$DROP_VERSION")
 
+        if (drop.versionCodeFromCommits.get()) {
+          variant.outputs.forEach { output -> output.versionCode.set(commitCount) }
+        }
+
+        // Store variants get drop-noop and nothing in their manifest: no server, and no Stamp that
+        // would make a reproducible build depend on the CI run.
+        if (!selected) return@onVariants
+        val variantChannel = drop.channelFor?.transform(dropVariant)
         val generate = project.tasks.register("generate${variant.name.replaceFirstChar(Char::uppercase)}DropManifest", GenerateDropManifest::class.java) {
           serverUrl.set(drop.serverUrl)
-          channel.set(drop.channel)
-          sdkEnabled.set(selected)
+          if (variantChannel != null) channel.set(variantChannel) else channel.set(drop.channel)
+          sdkEnabled.set(true)
           variantName.set(variant.name)
           runId.set(env("GITHUB_RUN_ID"))
           eventName.set(env("GITHUB_EVENT_NAME"))
@@ -51,10 +58,6 @@ public class DropPlugin : Plugin<Project> {
           manifest.set(project.layout.buildDirectory.file("generated/drop/${variant.name}/AndroidManifest.xml"))
         }
         variant.sources.manifests.addGeneratedManifestFile(generate, GenerateDropManifest::manifest)
-
-        if (drop.versionCodeFromCommits.get()) {
-          variant.outputs.forEach { output -> output.versionCode.set(commitCount) }
-        }
       }
     }
   }

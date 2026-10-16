@@ -82,7 +82,7 @@ public abstract class GenerateDropManifest : DefaultTask() {
     .replace("\"", "&quot;")
 }
 
-/** The number of commits in HEAD's history, for [DropExtension.versionCodeFromCommits]. */
+/** The number of first-parent commits in HEAD's history, for [DropExtension.versionCodeFromCommits]. */
 internal abstract class CommitCount : ValueSource<Int, CommitCount.Parameters> {
   interface Parameters : ValueSourceParameters {
     val repository: DirectoryProperty
@@ -95,7 +95,9 @@ internal abstract class CommitCount : ValueSource<Int, CommitCount.Parameters> {
     val output = ByteArrayOutputStream()
     exec.exec {
       workingDir(parameters.repository.get().asFile)
-      commandLine("git", "rev-list", "--count", "HEAD")
+      // First-parent only: on a pull request HEAD is GitHub's merge commit, whose full history (the
+      // base plus every PR commit) would out-count the squash-merged main Build that follows it.
+      commandLine("git", "rev-list", "--count", "--first-parent", "HEAD")
       standardOutput = output
     }
     return output.toString().trim().toInt()

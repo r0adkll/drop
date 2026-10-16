@@ -39,16 +39,17 @@ the generated client.
 - Adds `drop-android` to the variants `drop { enableFor { … } }` selects (a predicate on the
   variant's name, build type and flavors; by default the debug build type) and `drop-noop` to the
   rest, so `REQUEST_INSTALL_PACKAGES` never reaches a store build.
-- Writes the SDK's configuration (`serverUrl`, and the `channel` a Build without a Stamp follows)
-  into the variant's manifest as meta-data, which `Drop(context)` reads; `Drop(context, config)`
+- Writes the SDK's configuration (`serverUrl`, and the `channel` a Build without a Stamp follows,
+  per variant with `channelFor`) into the manifest of each variant that gets the SDK as meta-data, which `Drop(context)` reads; `Drop(context, config)`
   remains for apps that configure Drop themselves. The Product needs no setting: it is the app's
   own application ID ([ADR 0015](adr/0015-product-identity.md)).
 - Stamps the Channel and GitHub run ID from the CI environment into the same meta-data
   ([ADR 0013](adr/0013-stamped-build-identity.md)), choosing the Channel as the upload Action does.
   Both honour a job-level `DROP_CHANNEL` environment variable, so a workflow names a Channel once
   and the APK and its upload agree; the Action warns when its `channel` input differs.
-- Optionally derives the version code from the commit count. Off by default; Drop does not depend
-  on version codes ([ADR 0009](adr/0009-order-builds-by-run-id.md)).
+- Optionally derives the version code from the first-parent commit count, so a pull request's
+  Build (built from GitHub's merge commit) never out-counts the main Build its merge produces. Off
+  by default; Drop does not depend on version codes ([ADR 0009](adr/0009-order-builds-by-run-id.md)).
 
 It does not configure signing ([ADR 0006](adr/0006-signing-out-of-scope.md)) or upload Builds
 ([ADR 0005](adr/0005-uploads-through-github-action.md)).

@@ -70,10 +70,15 @@ private fun SampleScreen(drop: Drop) {
     Card(Modifier.fillMaxWidth()) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("This Build", style = MaterialTheme.typography.titleMedium)
-        val config = remember { DropManifest.read(context) }
+        // A store variant gets drop-noop and no Drop settings in its manifest.
+        val config = remember { runCatching { DropManifest.read(context) }.getOrNull() }
         Text("Version ${info.versionName} (${info.longVersionCode})")
-        Text(config.stamp?.let { "Stamp: ${it.channel}, run ${it.runId}" } ?: "No Stamp: follows ${config.channel}")
-        Text("Server: ${config.serverUrl}", style = MaterialTheme.typography.bodySmall)
+        if (config == null) {
+          Text("Store variant: Drop does nothing here")
+        } else {
+          Text(config.stamp?.let { "Stamp: ${it.channel}, run ${it.runId}" } ?: "No Stamp: follows ${config.channel}")
+          Text("Server: ${config.serverUrl}", style = MaterialTheme.typography.bodySmall)
+        }
       }
     }
 

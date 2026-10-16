@@ -141,7 +141,9 @@ so they can't update to or from Drop's.
    ```
 
    On CI the plugin stamps each Build with its Channel and run, which is how Drop recognises an
-   installed Build. A local build has no Stamp and follows `drop { channel }` (default `main`).
+   installed Build. A local build has no Stamp and follows `drop { channel }` (default `main`), or
+   per variant `drop { channelFor { if (it.flavorName == "beta") "beta" else null } }`. Store
+   variants get nothing in their manifest.
 
 2. **Create one `Drop` per process** and check when it suits your app:
 
@@ -192,7 +194,8 @@ jobs:
 **Version codes.** Drop orders Builds by GitHub run, not version code
 ([ADR 0009](docs/adr/0009-order-builds-by-run-id.md)). Android still refuses a lower version code,
 so an Update with one is offered as a reinstall. `drop { versionCodeFromCommits = true }` sets the
-version code to the commit count, which only grows (CI needs `fetch-depth: 0`).
+version code to the first-parent commit count, which only grows and never puts a pull request's
+Build above the main Build its merge produces (CI needs `fetch-depth: 0`).
 
 The [sample app](android/sample) shows the whole loop, and its CI uploads it to a deployment.
 

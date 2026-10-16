@@ -6,6 +6,18 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Added
+
+- Gradle plugin: `drop { channelFor { variant -> … } }` sets the Channel each variant's local
+  (unstamped) Builds follow, such as `beta` for a beta flavor.
+
+### Fixed
+
+- Gradle plugin: `versionCodeFromCommits` counts first-parent commits only, so a pull request's
+  Build no longer out-counts the main Build its merge produces.
+- Gradle plugin: store variants (drop-noop) no longer get Drop's settings or the CI Stamp in their
+  manifest, which leaked the server URL and broke reproducible builds.
+
 ## [0.1.0] - 2026-10-16
 
 The first release: milestone 1, Public products.
