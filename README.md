@@ -1,4 +1,4 @@
-# Drop
+# <img src="docs/assets/drop-icon.svg" width="40" height="40" alt="" align="top"> Drop
 
 Self-hosted distribution for Android CI builds. CI uploads a build, Drop gives it a page with a
 QR code and an install button, and apps built with the Drop SDK can check for newer builds and

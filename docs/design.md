@@ -28,7 +28,7 @@ deploy/          deploy Action (composite), used by deployment repositories
 deployment/      starter files for a deployment repository, and init.sh to create one
 android/         Gradle build: SDK modules (KMP, Android target) and samples
 android/plugin/  Gradle plugin, as an included build
-docs/            design notes and ADRs
+docs/            design notes and ADRs; docs/assets holds Drop's icon
 ```
 
 The Kotlin API client is generated from the OpenAPI document in `server/`; edit the document, not
