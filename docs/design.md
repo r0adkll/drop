@@ -169,6 +169,18 @@ Build page link. When the pull request closes, the comment notes when its Builds
 and that Testers will be offered the default Channel's newest Build. Once they are deleted, the
 retention job edits the comment down to that note.
 
+## Commit comments
+
+A Build on any Channel other than a Pull request channel (`main`, or a named Channel such as
+`beta`) is announced with a comment on its commit: the pull request comment's block for that one
+Build (QR code, icon, name, version, Channel, CI run and Build page link), without the "Updated at"
+line, and a footnote saying how long Builds on its Channel are kept. GitHub lets the App create
+commit comments but not edit them without push access ([ADR 0010](adr/0010-github-app-for-access.md)),
+so they are post-only: one per Build, never edited, so an expired Build's comment links to its
+expired Build page. A later attempt of the run keeps the Build's ID and URL, so it posts nothing new.
+Commit comments notify the commit's author; a Product turns them off with `commitComments: false`
+in the deployment config.
+
 ## Notifications
 
 Beyond the pull request comment and the SDK's check, Drop sends outgoing webhooks when a Build
@@ -214,9 +226,9 @@ workflow pins ([ADR 0016](adr/0016-config-only-deployment-repositories.md)).
   required `owners` list (accounts such as `"campfire"` or `"r0adkll"`), per-repository exceptions
   allowing `pull_request_target` or `workflow_run` uploads
   (`"repositories": { "r0adkll/side-app": { "allowEvents": [...] } }`; they never grant access),
-  webhooks and per-Product overrides (force private, retention, icon, display name). Each Owner
-  installs the Deployment's GitHub App on the repositories it wants to upload from; changing that
-  selection needs no redeploy.
+  webhooks and per-Product overrides (force private, retention, icon, display name, commit
+  comments). Each Owner installs the Deployment's GitHub App on the repositories it wants to upload
+  from; changing that selection needs no redeploy.
 - **The lockfile** (`drop.config.lock.json`) is written only by setup and checked in: each Owner's
   numeric ID (kept unless setup runs with `--refresh`), the GitHub App's ID, slug and client ID, and
   the Cloudflare resources (`accountId`, `workerName`, `d1DatabaseId`, `r2Bucket`). The config

@@ -37,6 +37,8 @@ export async function createFakeGitHub({ appId = 4242, now = () => Date.now() }:
     repositories: new Map<number, WebhookRepository[]>(),
     /** Issue comments by `owner/repo#number`. */
     comments: new Map<string, FakeComment[]>(),
+    /** Commit comments by `owner/repo@sha`. */
+    commitComments: new Map<string, FakeComment[]>(),
     tokensIssued: 0,
   };
   const calls: GitHubCall[] = [];
@@ -70,6 +72,17 @@ export async function createFakeGitHub({ appId = 4242, now = () => Date.now() }:
         performed_via_github_app: { id: appId },
       };
       state.comments.set(issueKey(match), [...(state.comments.get(issueKey(match)) ?? []), comment]);
+      return Response.json(comment, { status: 201 });
+    }],
+    ["POST", /^\/repos\/([^/]+\/[^/]+)\/commits\/([0-9a-f]+)\/comments$/, (call, match) => {
+      const comment: FakeComment = {
+        id: (nextCommentId += 1),
+        body: (call.body as { body: string }).body,
+        user: { login: "drop-example[bot]", type: "Bot" },
+        performed_via_github_app: { id: appId },
+      };
+      const key = `${match[1]}@${match[2]}`;
+      state.commitComments.set(key, [...(state.commitComments.get(key) ?? []), comment]);
       return Response.json(comment, { status: 201 });
     }],
     ["DELETE", /^\/repos\/([^/]+\/[^/]+)\/issues\/comments\/(\d+)$/, (_call, match) => {

@@ -36,6 +36,8 @@ export interface ProductOverrides {
   displayName?: string;
   icon?: string;
   retention?: Retention;
+  /** false stops commit comments for this Product's Builds (docs/design.md#commit-comments). */
+  commitComments?: false;
 }
 
 export interface DropConfig {

@@ -5,6 +5,7 @@ import { ApiError, type ErrorBody } from "./errors";
 import type { components } from "./generated/openapi";
 import { handlePullRequestEvent, handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
 import { createGitHubApp, NO_APP, type GitHubApp } from "./github/client";
+import { postCommitComment } from "./github/commit-comment";
 import { claimResync, resyncInstallations } from "./github/installations";
 import { noteDeletedBuilds, updatePullRequestComment, type CommentTarget } from "./github/pull-request-comment";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
@@ -83,7 +84,7 @@ export function createApp(deps: Dependencies) {
     if (!BUILD_ID.test(buildId)) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
     const claims = await claimsOf(c);
     const uploaded = await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId);
-    waitUntil(c)(announceOnPullRequest(deps, c.env, buildId, claims.repositoryOwnerId));
+    waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
     return c.json(uploaded);
   });
 
@@ -205,8 +206,13 @@ function pageContentSecurityPolicy(): Promise<string> {
   return contentSecurityPolicy;
 }
 
-/** Shows a newly confirmed Build in its pull request's comment, if it is on a Pull request channel. */
-async function announceOnPullRequest(deps: Dependencies, env: Env, buildId: string, ownerId: number): Promise<void> {
+/**
+ * Announces a newly confirmed Build: in its pull request's comment on a Pull request channel, with a
+ * comment on its commit otherwise (docs/design.md#commit-comments).
+ */
+async function announceBuild(deps: Dependencies, env: Env, buildId: string, ownerId: number): Promise<void> {
+  const github = deps.github(env);
+  if (!github) return;
   const build = await env.DB
     .prepare(
       `SELECT c.pull_request, p.repository_id, p.repository FROM builds b
@@ -214,18 +220,29 @@ async function announceOnPullRequest(deps: Dependencies, env: Env, buildId: stri
     )
     .bind(buildId)
     .first<{ pull_request: number | null; repository_id: number; repository: string }>();
-  if (build?.pull_request == null) return;
+  if (!build) return;
   const installation = await env.DB.prepare("SELECT id FROM installations WHERE account_id = ?").bind(ownerId).first<{ id: number }>();
   if (!installation) {
-    console.warn(`No installation recorded for ${build.repository}'s owner, so its pull request comment can't be updated.`);
+    console.warn(`No installation recorded for ${build.repository}'s owner, so its Build can't be announced on GitHub.`);
     return;
   }
-  await refreshComment(deps, env, {
-    repositoryId: build.repository_id,
-    repository: build.repository,
-    pullRequest: build.pull_request,
-    installationId: installation.id,
-  });
+  if (build.pull_request !== null) {
+    await refreshComment(deps, env, {
+      repositoryId: build.repository_id,
+      repository: build.repository,
+      pullRequest: build.pull_request,
+      installationId: installation.id,
+    });
+    return;
+  }
+  try {
+    const outcome = await postCommitComment(env.DB, github, config.url, buildId, installation.id, deps.now());
+    if (outcome === "not_permitted") {
+      console.warn(`The GitHub App can't comment on ${build.repository}'s commits: its installation hasn't accepted Contents read (ADR 0010).`);
+    }
+  } catch (error) {
+    console.error(`Commenting on Build ${buildId}'s commit failed:`, error);
+  }
 }
 
 /** The ID of a confirmed Build, expired or not; 404 otherwise. */

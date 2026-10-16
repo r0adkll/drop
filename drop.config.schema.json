@@ -153,6 +153,10 @@
         },
         "retention": {
           "$ref": "#/$defs/retention"
+        },
+        "commitComments": {
+          "description": "Set to false to stop announcing this Product's Builds outside pull requests with a comment on their commit.",
+          "const": false
         }
       }
     },

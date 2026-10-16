@@ -19,7 +19,7 @@ describe("the App manifest", () => {
       hook_attributes: { url: "https://drop.example.com/api/v1/github/webhook", active: true },
       redirect_url: "http://127.0.0.1:5000/callback",
       public: true,
-      default_permissions: { metadata: "read", pull_requests: "write" },
+      default_permissions: { metadata: "read", contents: "read", pull_requests: "write" },
       default_events: ["pull_request"],
     });
   });

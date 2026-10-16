@@ -5,7 +5,7 @@ import { closedPullRequestHours } from "../config";
 import { GitHubError, type GitHubApp } from "./client";
 
 export const COMMENT_MARKER = "<!-- drop:pull-request-comment -->";
-const DROP_REPOSITORY = "https://github.com/r0adkll/drop";
+export const DROP_REPOSITORY = "https://github.com/r0adkll/drop";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export interface CommentBuild {
@@ -60,7 +60,7 @@ export function renderPullRequestComment({ baseUrl, repository, builds, closed }
   if (builds.length > 0) {
     parts.push("**Install from Drop.** Scan a code with your Android phone, or open its Build page.");
     const sorted = [...builds].sort((a, b) => name(a).localeCompare(name(b)) || a.applicationId.localeCompare(b.applicationId));
-    parts.push(...sorted.map((build) => block(baseUrl, repository, build)));
+    parts.push(...sorted.map((build) => buildBlock(baseUrl, repository, build)));
     const latest = builds.reduce((a, b) => (b.uploadedAt > a.uploadedAt ? b : a));
     parts.push(`<sub>Updated at ${formatTime(latest.uploadedAt)} UTC by ${runLink(repository, latest)} · <a href="${DROP_REPOSITORY}">Drop</a></sub>`);
   }
@@ -73,8 +73,15 @@ export function renderDeletedComment({ deletedAt, defaultChannel }: CommentDelet
   return `${COMMENT_MARKER}\n\n> [!NOTE]\n> This pull request’s Builds were deleted on ${formatDay(deletedAt)}. Testers who installed one are offered ${offered}.\n`;
 }
 
-function block(baseUrl: string, repository: string, build: CommentBuild): string {
+/**
+ * One Build's block: its QR code beside its name, version, Channel, commit and CI run. A commit
+ * comment leaves out the commit, which it is already on.
+ */
+export function buildBlock(baseUrl: string, repository: string, build: CommentBuild, { commitLink = true } = {}): string {
   const page = `${baseUrl}/b/${build.id}`;
+  const commit = commitLink
+    ? ` · commit <a href="https://github.com/${escapePath(repository)}/commit/${escape(build.commitSha)}">${escape(build.commitSha.slice(0, 7))}</a>`
+    : "";
   const title = `${escape(name(build))} ${version(build)}`;
   const icon = build.hasIcon ? `<img src="${page}/icon" width="20" height="20" alt=""> ` : "";
   return [
@@ -82,7 +89,7 @@ function block(baseUrl: string, repository: string, build: CommentBuild): string
     `<td><a href="${page}"><img src="${page}/qr.svg" width="128" height="128" alt="QR code for ${title}"></a></td>`,
     "<td>",
     `${icon}<b>${escape(name(build))}</b> ${version(build)}<br>`,
-    `<code>${escape(build.channel)}</code> · commit <a href="https://github.com/${escapePath(repository)}/commit/${escape(build.commitSha)}">${escape(build.commitSha.slice(0, 7))}</a> · ${runLink(repository, build)}<br>`,
+    `<code>${escape(build.channel)}</code>${commit} · ${runLink(repository, build)}<br>`,
     "<br>",
     `<b><a href="${page}">Open Build page</a></b>`,
     "</td>",
@@ -99,7 +106,7 @@ const runLink = (repository: string, build: CommentBuild) =>
  * HTML-escapes a value. Inside GitHub's HTML blocks Markdown isn't parsed until a blank line, so
  * line breaks are flattened too.
  */
-function escape(value: string): string {
+export function escape(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -109,7 +116,7 @@ function escape(value: string): string {
     .replace(/\s*[\r\n]+\s*/g, " ");
 }
 
-const escapePath = (repository: string) => repository.split("/").map(encodeURIComponent).join("/");
+export const escapePath = (repository: string) => repository.split("/").map(encodeURIComponent).join("/");
 
 function formatTime(at: number): string {
   const date = new Date(at);

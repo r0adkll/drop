@@ -42,8 +42,8 @@ export function appManifest(options: { deploymentUrl: string; redirectUrl: strin
     hook_attributes: { url: `${url}/api/v1/github/webhook`, active: true },
     redirect_url: options.redirectUrl,
     public: options.isPublic,
-    // Exactly what ADR 0010 grants: Metadata read, Pull requests read and write.
-    default_permissions: { metadata: "read", pull_requests: "write" },
+    // Exactly what ADR 0010 grants: Metadata and Contents read, Pull requests read and write.
+    default_permissions: { metadata: "read", contents: "read", pull_requests: "write" },
     // Installation events reach every App without a subscription; pull_request ends Channels.
     default_events: ["pull_request"],
   };

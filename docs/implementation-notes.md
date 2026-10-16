@@ -80,8 +80,13 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 
 ## GitHub App
 
-- Permissions: *Metadata: read* and *Pull requests: read and write*. GitHub delivers pull request
-  webhooks only to Apps with the Pull requests permission.
+- Permissions: *Metadata: read*, *Contents: read* and *Pull requests: read and write*. GitHub
+  delivers pull request webhooks only to Apps with the Pull requests permission.
+- Commit comments (`POST /repos/{owner}/{repo}/commits/{sha}/comments`) need *Contents: read* to
+  create, but *Contents: write* to edit or delete (GitHub's "Permissions required for GitHub Apps"
+  page), so Drop's are post-only. Adding a permission to an existing App takes effect per
+  installation only once its Owner accepts it; until then the post answers 403 "Resource not
+  accessible by integration".
 - Events: the App subscribes to *Pull request*. `installation` and `installation_repositories`
   reach every App without a subscription.
 - The pull request comment is an issue comment (`/repos/{owner}/{repo}/issues/{n}/comments`), which

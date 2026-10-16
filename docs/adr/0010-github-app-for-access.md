@@ -8,8 +8,11 @@ and the App can access, so they answer "can this person read it" without asking 
 anything broader.
 
 The same App receives pull request webhooks (so Drop knows when a Pull request channel ends) and
-posts the comment announcing each Build on its pull request. It therefore holds *Metadata: read*
-and *Pull requests: read and write*, and nothing else.
+posts the comment announcing each Build on its pull request. Builds on any other Channel are
+announced with a comment on their commit, which GitHub lets an App create with *Contents: read*
+but edit or delete only with *Contents: write*. Write would let the App push code, so Drop never
+takes it, and commit comments are post-only. The App therefore holds *Metadata: read*,
+*Contents: read* and *Pull requests: read and write*, and nothing else.
 
 ## Considered Options
 
@@ -19,6 +22,8 @@ and *Pull requests: read and write*, and nothing else.
   organization teams unless Drop resolves membership itself.
 - **Posting the pull request comment from the Action with `GITHUB_TOKEN`:** would have kept the App
   read-only, but every workflow would need `pull-requests: write` and its own comment step.
+- **A check run instead of a commit comment:** needs only *Checks: write* and can be edited, but
+  puts nothing on the commit page itself; the link sits one click into the commit's checks.
 
 ## Consequences
 
@@ -29,7 +34,10 @@ App's credentials, keeps the private key and webhook secret for the Worker's sec
 its first deploy, or with `wrangler secret bulk` once it exists), and writes the App's ID and slug
 into `drop.config.lock.json`. The App is
 private when the setup account is the only listed Owner, and public otherwise, so that the other
-Owners can install it ([ADR 0004](0004-explicit-source-list.md)). Because the App posts the pull
+Owners can install it ([ADR 0004](0004-explicit-source-list.md)). *Contents: read* is the costliest
+of these: anyone holding the App's private key can read the source of every repository it is
+installed on. An Owner who installed the App before it asked for Contents must accept the new
+permission in GitHub; until then Drop skips commit comments. Because the App posts the pull
 request comments and decides which repositories may upload, it is part of the first milestone even
 though private Products come later.
 
