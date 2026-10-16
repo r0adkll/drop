@@ -231,8 +231,9 @@ Agreed from the mockups on the [Update sheet canvas](https://claude.ai/artifact/
   **Cancel download** deletes it.
 - Ready to install explains what happens next before every install: Android's confirmation, then,
   for a signing key Play Protect hasn't seen, its "App blocked" warning and **More details →
-  Install anyway**. A cancelled install offers **Try again** without downloading again, or removing
-  the download.
+  Install anyway**, then that the app closes and is opened again from the home screen (Android
+  doesn't relaunch an updated app). A cancelled install offers **Try again** without downloading
+  again, or removing the download.
 - An Update that can't install in place (a lower version code, or a different Signer) explains why
   in the Tester's terms, warns that uninstalling deletes the app's data, lists the two steps
   (uninstall, then install from the Build page) and opens the Build page: the sheet can't reinstall

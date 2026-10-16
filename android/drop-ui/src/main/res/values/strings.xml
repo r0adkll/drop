@@ -42,7 +42,7 @@
   <string name="drop_ready_next">What happens next</string>
   <string name="drop_ready_step_confirm">Android asks you to confirm the update.</string>
   <string name="drop_ready_step_play_protect">If Google Play Protect says the app is blocked, tap More details, then Install anyway. It hasn\'t seen your team\'s signing key before, which is expected for test builds.</string>
-  <string name="drop_ready_step_reopen">%1$s closes and reopens on the new version.</string>
+  <string name="drop_ready_step_reopen">%1$s closes once it\'s updated. Open it again from your home screen.</string>
   <string name="drop_install">Install</string>
   <string name="drop_installing">Installing…</string>
   <string name="drop_later">Later</string>

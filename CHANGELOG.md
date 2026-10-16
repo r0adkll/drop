@@ -6,6 +6,11 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Fixed
+
+- Update sheet: Ready to install no longer promises the app reopens after updating; it says to
+  open it again from the home screen, which is what Android does.
+
 ## [0.1.1] - 2026-10-16
 
 ### Added
