@@ -6,6 +6,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
 ### Added
 
 - Action: a `notes` input for a Build's release notes. Their first line becomes the Build's
