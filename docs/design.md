@@ -40,9 +40,10 @@ the generated client.
   variant's name, build type and flavors; by default the debug build type) and `drop-noop` to the
   rest, so `REQUEST_INSTALL_PACKAGES` never reaches a store build.
 - Writes the SDK's configuration (`serverUrl`, and the `channel` a Build without a Stamp follows,
-  per variant with `channelFor`) into the manifest of each variant that gets the SDK as meta-data, which `Drop(context)` reads; `Drop(context, config)`
-  remains for apps that configure Drop themselves. The Product needs no setting: it is the app's
-  own application ID ([ADR 0015](adr/0015-product-identity.md)).
+  per variant with `channelFor`) into the manifest of each variant that gets the SDK as meta-data,
+  which `Drop(context)` reads; `Drop(context, config)` remains for apps that configure Drop
+  themselves. The Product needs no setting: it is the app's own application ID
+  ([ADR 0015](adr/0015-product-identity.md)).
 - Stamps the Channel and GitHub run ID from the CI environment into the same meta-data
   ([ADR 0013](adr/0013-stamped-build-identity.md)), choosing the Channel as the upload Action does.
   Both honour a job-level `DROP_CHANNEL` environment variable, so a workflow names a Channel once
