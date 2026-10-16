@@ -3,6 +3,7 @@ package com.r0adkll.drop.sample
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,9 +27,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.r0adkll.drop.Drop
 import com.r0adkll.drop.DropConfig
 import com.r0adkll.drop.DropState
@@ -120,8 +122,14 @@ private fun SampleScreen(drop: Drop) {
 
 @Composable
 private fun InstallButtons(drop: Drop) {
-  val context = androidx.compose.ui.platform.LocalContext.current
-  if (drop.canInstall()) {
+  val context = LocalContext.current
+  // The Tester grants the permission in Settings, so read it again whenever the screen resumes.
+  var canInstall by remember { mutableStateOf(drop.canInstall()) }
+  LifecycleResumeEffect(drop) {
+    canInstall = drop.canInstall()
+    onPauseOrDispose {}
+  }
+  if (canInstall) {
     Button(onClick = { drop.install() }) { Text("Install") }
   } else {
     Button(onClick = { context.startActivity(drop.installPermissionIntent()) }) { Text("Allow installs from this app") }

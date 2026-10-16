@@ -180,6 +180,15 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - A backgrounded app cannot start the install confirmation. A `PackageInstaller` session's
   `STATUS_PENDING_USER_ACTION` intent has to be launched while the app is in the foreground, hence
   the persisted ready-to-install state.
+- Google Play Protect checks every PackageInstaller install on devices with Play services. For a
+  signing key it hasn't seen it shows "App blocked to protect your device… Play Protect hasn't seen
+  an app from this developer before" after Android's own confirmation; the Tester must open *More
+  details* and tap *Install anyway*. Dismissing it fails the session as
+  `INSTALL_FAILED_VERIFICATION_FAILURE` ("User selected REJECT"), reported to the app as
+  `STATUS_FAILURE_ABORTED`. Seen on an emulator with Play services (2026-10-15); the Update sheet
+  must prepare Testers for it.
+- *Install unknown apps* is granted in Settings, outside the app, so read
+  `canRequestPackageInstalls()` again when the app resumes.
 - Expect Android's install confirmation on every update: prompt-free updates
   (`setRequireUserAction`, Android 12+) need the updating app to be the installer of record, and
   apps installed from a browser are not.
