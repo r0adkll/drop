@@ -146,7 +146,7 @@ Agreed from the mockups on the [site pages canvas](https://claude.ai/artifact/SY
 They share the Build page's document, styles, script and Content Security Policy, and ask search
 engines not to index them.
 
-- **Index (`/`):** Drop's logo beside the deployment's host, "Apps", and a card per Public product with Builds, most
+- **Index (`/`):** Drop's logo and name, "Apps", and a card per Public product with Builds, most
   recently active first. A card shows the icon, name and repository, the default Channel's newest
   Build (version, headline, age, size, Build page link) with its QR code on desktop or an
   **Install** button on a phone, and the Product's Channels as chips, pull requests counted rather

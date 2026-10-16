@@ -19,11 +19,10 @@ const buildPath = (id: string) => `/b/${id}`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function renderIndex(products: ProductSummary[], ctx: RenderContext): RenderedPage {
-  const host = esc(new URL(ctx.baseUrl).host);
   const cards = products.map((product) => indexCard(product, ctx)).join("");
   const body =
     `<header class="head"><div class="wrap"><div class="hero">` +
-    `<p class="brand"><span class="logo" aria-hidden="true">${DROP_ICON_SVG}</span>${host}</p><h1>Apps</h1>` +
+    `<p class="brand"><span class="logo" aria-hidden="true">${DROP_ICON_SVG}</span>Drop</p><h1>Apps</h1>` +
     `<p class="lede">Test builds from CI. Scan a code with your Android phone, or open an app to see its channels.</p>` +
     `</div></div></header>` +
     `<main class="wrap site">${products.length > 0 ? `<div class="cards">${cards}</div>` : `<p class="muted">No apps have Builds here yet.</p>`}</main>` +
