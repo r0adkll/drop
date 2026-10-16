@@ -18,6 +18,17 @@
       "format": "uri",
       "pattern": "^https://[^/]+$"
     },
+    "pages": {
+      "description": "The pages beyond Build pages: an index of Products at /, Product pages and Channel pages.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "description": "Set to false to turn off the index and Product pages. Channel and Build pages stay reachable by link.",
+          "type": "boolean"
+        }
+      }
+    },
     "owners": {
       "description": "The GitHub accounts this deployment trusts. Within each, the repositories the deployment's GitHub App is installed on may upload. An empty list accepts nothing (ADR 0004). Run `npm run setup` after changing it.",
       "type": "array",

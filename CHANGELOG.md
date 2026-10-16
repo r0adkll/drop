@@ -8,6 +8,9 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ### Added
 
+- Server: an index of apps at `/`, a page per app (`/p/<applicationId>`) and a page per Channel
+  (`/p/<applicationId>/c/<channel>`) listing its Builds. Public products only;
+  `"pages": { "index": false }` turns the index and app pages off.
 - Gradle plugin: `drop { channelFor { variant -> … } }` sets the Channel each variant's local
   (unstamped) Builds follow, such as `beta` for a beta flavor.
 

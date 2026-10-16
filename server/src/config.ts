@@ -40,8 +40,15 @@ export interface ProductOverrides {
   commitComments?: false;
 }
 
+/** The pages beyond Build pages (docs/design.md#site-pages). */
+export interface Pages {
+  /** false turns off the index and Product pages; Channel and Build pages stay reachable by link. */
+  index?: boolean;
+}
+
 export interface DropConfig {
   url: string;
+  pages?: Pages;
   owners: OwnerName[];
   repositories?: Record<RepositoryName, RepositoryException>;
   webhooks?: Record<string, Webhook>;
@@ -65,4 +72,9 @@ export const lock = rawLock as DropLock;
 /** Hours a closed pull request's Builds are kept: the Product's override, else 24 (docs/design.md#retention). */
 export function closedPullRequestHours(applicationId: ApplicationId): number {
   return config.products?.[applicationId]?.retention?.closedPullRequestHours ?? 24;
+}
+
+/** Whether the deployment serves its index and Product pages (docs/design.md#site-pages). */
+export function indexPagesEnabled(): boolean {
+  return config.pages?.index !== false;
 }

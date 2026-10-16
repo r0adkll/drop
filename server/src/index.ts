@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { installationAllowedRepositories, type AllowedRepositories, type AllowList } from "./allowed-repositories";
-import { config, lock } from "./config";
+import { config, indexPagesEnabled, lock } from "./config";
 import { ApiError, type ErrorBody } from "./errors";
 import type { components } from "./generated/openapi";
 import { handlePullRequestEvent, handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
@@ -13,6 +13,8 @@ import { r2Presigner, type Presigner } from "./presign";
 import { loadBuildPage } from "./build-page/model";
 import { PAGE_SCRIPT, renderBuildPage } from "./build-page/render";
 import { serveDownload } from "./download";
+import { loadChannelPage, loadIndex, loadProductPage } from "./site-pages/model";
+import { renderChannelPage, renderIndex, renderProductPage } from "./site-pages/render";
 import { DROP_ICON_SVG } from "./icon";
 import { sendBuildWebhooks } from "./notifications";
 import { qrPng, qrSvg } from "./qr";
@@ -180,6 +182,42 @@ export function createApp(deps: Dependencies) {
 
   // The Build page (docs/design.md#build-pages). Every state renders here: available, expired, private
   // and unknown, so a link always lands on a page rather than an error body.
+  // The index, Product and Channel pages (docs/design.md#site-pages). The index and Product pages
+  // can be turned off in config; Channel pages stay reachable by link.
+  const sitePage = async (c: Context<{ Bindings: Env }>, page: { status: number; html: string }) =>
+    c.html(page.html, page.status as 200 | 403 | 404, {
+      "cache-control": "public, max-age=60",
+      "content-security-policy": await pageContentSecurityPolicy(),
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-robots-tag": "noindex",
+    });
+  const notFound = (c: Context<{ Bindings: Env }>) => sitePage(c, renderChannelPage({ kind: "not_found" }, { baseUrl: config.url }));
+
+  app.get("/", async (c) => {
+    if (!indexPagesEnabled()) return notFound(c);
+    return sitePage(c, renderIndex(await loadIndex(c.env.DB), { baseUrl: config.url }));
+  });
+
+  app.get("/p/:applicationId", async (c) => {
+    if (!indexPagesEnabled()) return notFound(c);
+    return sitePage(c, renderProductPage(await loadProductPage(c.env.DB, c.req.param("applicationId")), { baseUrl: config.url }));
+  });
+
+  app.get("/p/:applicationId/c/*", async (c) => {
+    const applicationId = c.req.param("applicationId");
+    const prefix = `/p/${encodeURIComponent(applicationId)}/c/`;
+    const path = new URL(c.req.url).pathname;
+    if (!path.startsWith(prefix)) return notFound(c);
+    let channel: string;
+    try {
+      channel = path.slice(prefix.length).split("/").map(decodeURIComponent).join("/");
+    } catch {
+      return notFound(c);
+    }
+    return sitePage(c, renderChannelPage(await loadChannelPage(c.env.DB, applicationId, channel), { baseUrl: config.url }));
+  });
+
   app.get("/b/:buildId", async (c) => {
     const page = renderBuildPage(await loadBuildPage(c.env.DB, c.req.param("buildId")), { baseUrl: config.url });
     return c.html(page.html, page.status, {

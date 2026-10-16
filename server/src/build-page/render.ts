@@ -193,7 +193,7 @@ function appRow(build: PageBuild, chips: string, gone = false): string {
   );
 }
 
-function icon(src: string | null, gone: boolean): string {
+export function icon(src: string | null, gone: boolean): string {
   const cls = `icon${gone ? " gone" : ""}`;
   return src ? `<span class="${cls}"><img src="${esc(src)}" alt="" width="44" height="44"></span>` : `<span class="${cls}" aria-hidden="true"></span>`;
 }
@@ -256,24 +256,29 @@ function dl(rows: [string, string][]): string {
   return `<dl class="facts">${rows.map(([term, value]) => `<dt>${esc(term)}</dt><dd>${value}</dd>`).join("")}</dl>`;
 }
 
-function footer(ctx: RenderContext): string {
+export function footer(ctx: RenderContext): string {
   return `<footer class="wrap foot"><span class="mark" aria-hidden="true">${DROP_ICON_SVG}</span>Served by Drop · ${esc(new URL(ctx.baseUrl).host)}</footer>`;
 }
 
 /** UTC on the server; the page's script rewrites it in the Tester's own time zone. */
-function time(at: number, relative = false): string {
+export function time(at: number, relative = false): string {
   return `<time datetime="${new Date(at).toISOString()}"${relative ? " data-relative" : ""}>${formatUtc(at)}</time>`;
 }
 
+/** "2 hours ago" once the page's script runs; the UTC date and time until then. */
+export function ago(at: number): string {
+  return `<time datetime="${new Date(at).toISOString()}" data-ago>${formatUtc(at)}</time>`;
+}
+
 /** A date alone, for running sentences; localized by the page's script like time(). */
-function date(at: number): string {
+export function date(at: number): string {
   return `<time datetime="${new Date(at).toISOString()}" data-date>${formatUtcDate(at)}</time>`;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Document
 
-interface Meta {
+export interface Meta {
   title: string;
   description: string | null;
   ogTitle: string | null;
@@ -281,7 +286,7 @@ interface Meta {
   image: string | null;
 }
 
-function document(meta: Meta, body: string): string {
+export function document(meta: Meta, body: string): string {
   const og = meta.ogTitle
     ? [
         `<meta property="og:type" content="website">`,
@@ -341,11 +346,11 @@ export function colonHex(hex: string): string {
   return hex.toUpperCase().match(/.{1,2}/g)?.join(":") ?? hex;
 }
 
-function version(build: { versionName: string | null; versionCode: number }): string {
+export function version(build: { versionName: string | null; versionCode: number }): string {
   return build.versionName ? `${build.versionName} (${build.versionCode})` : `(${build.versionCode})`;
 }
 
-function firstLine(text: string | null): string | null {
+export function firstLine(text: string | null): string | null {
   const line = text?.split(/\r?\n/, 1)[0]?.trim();
   return line ? line : null;
 }
@@ -373,6 +378,13 @@ export const PAGE_SCRIPT = `(() => {
   for (const t of document.querySelectorAll("time[datetime]")) {
     const d = new Date(t.getAttribute("datetime"));
     if (isNaN(d.getTime())) continue;
+    if (rel && t.hasAttribute("data-ago")) {
+      const s = (d.getTime() - Date.now()) / 1000, a = Math.abs(s);
+      const [v, u] = a < 3600 ? [s / 60, "minute"] : a < 86400 ? [s / 3600, "hour"] : [s / 86400, "day"];
+      t.title = full.format(d);
+      t.textContent = rel.format(Math.round(v), u);
+      continue;
+    }
     t.textContent = (t.hasAttribute("data-date") ? day : full).format(d);
     if (rel && t.hasAttribute("data-relative")) {
       const s = (d.getTime() - Date.now()) / 1000, a = Math.abs(s);
@@ -475,4 +487,29 @@ h1{font-size:22px}
 .install-bar.phone-only{display:block;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);
 padding:12px max(16px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 .install-bar .btn{width:100%}}
+.crumbs{font-size:13px;color:var(--muted);margin:0}
+.site{padding-block:28px 24px;display:grid;gap:28px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;gap:16px;align-content:start;min-width:0}
+.card-top{display:flex;gap:12px;align-items:center;min-width:0}
+.card-name{font-weight:600;font-size:17px;color:var(--fg);text-decoration:none;overflow-wrap:anywhere}
+.card-mid{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}
+.card-mid .qr{padding:8px;border-radius:12px}
+.card-mid .qr svg{width:120px;height:120px}
+.card-foot{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:14px}
+.card-foot .all{margin-left:auto;font-size:14px}
+a.chip{text-decoration:none}
+.stack{display:grid;gap:4px;min-width:0}
+.small{font-size:13px;color:var(--muted)}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 20px;align-items:center;padding:16px 20px;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item .acts{display:flex;gap:10px;align-items:center}
+.item-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dim{opacity:.75}
+.icon.big{width:56px;height:56px}
+.ended{max-width:560px}
+.phone-flex{display:none}
+@media (max-width:720px){.cards{grid-template-columns:minmax(0,1fr)}.card-mid .qr{display:none}.phone-flex{display:flex}
+.item{grid-template-columns:minmax(0,1fr)}.site{padding-block:18px 20px;gap:20px}}
 `;

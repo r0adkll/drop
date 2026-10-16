@@ -100,7 +100,8 @@ these rules.
 
 ## Build pages
 
-- The Build page is the only web page in milestone 1. There are no Channel, Product or index pages.
+- Build pages sit under the site pages (below): an index of Products, a page per Product and a page
+  per Channel.
 - It leads with what the Build contains: the pull request title (or the commit message outside pull
   requests) as the headline, the head commit and its message beneath, then the app's icon, name,
   version and Channel. The Action takes the commit message from the event payload, or from
@@ -138,6 +139,31 @@ these rules.
   sign-in, which reveals nothing about the Build, and an unknown ID gets a not-found page. Both are
   a heading and one sentence in the Build page's style, agreed as written; the sign-in page gets its
   own design with milestone 2.
+
+## Site pages
+
+Agreed from the mockups on the [site pages canvas](https://claude.ai/artifact/SYjHDByEtPusRh1qxem1za).
+They share the Build page's document, styles, script and Content Security Policy, and ask search
+engines not to index them.
+
+- **Index (`/`):** the deployment's host, "Apps", and a card per Public product with Builds, most
+  recently active first. A card shows the icon, name and repository, the default Channel's newest
+  Build (version, headline, age, size, Build page link) with its QR code on desktop or an
+  **Install** button on a phone, and the Product's Channels as chips, pull requests counted rather
+  than listed. A Product with nothing on its default Channel says so.
+- **Product page (`/p/<applicationId>`):** a Channels section (the default Channel first, then
+  other named Channels) and a Pull requests section (open ones by newest activity, then ended ones,
+  dimmed, with when their Builds are deleted). Each row shows the newest Build and links to its
+  Channel page. Channels without Builds aren't listed.
+- **Channel page (`/p/<applicationId>/c/<channel>`):** a pull request's title, state and link, or
+  the Channel's name, how long its Builds are kept, and its Builds newest first (version, commit,
+  CI run, age, size, when it is deleted), each linking to its Build page. Only the newest gets an
+  **Install** button on a phone.
+- **An ended Channel without Builds** keeps its page: it says the pull request was merged or closed
+  and its Builds deleted, and offers the default Channel's newest Build, like an expired Build page.
+- Only Public products are listed. A Private product's pages answer 403 with nothing about it,
+  until milestone 2's sign-in. `"pages": { "index": false }` in the deployment config turns off the
+  index and Product pages; Channel and Build pages stay reachable by link.
 
 ## Update check
 

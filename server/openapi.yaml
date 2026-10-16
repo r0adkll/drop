@@ -127,6 +127,99 @@ paths:
                 $ref: "#/components/schemas/UpdateCheck"
         default:
           $ref: "#/components/responses/Error"
+  /:
+    get:
+      operationId: getIndexPage
+      summary: The index of Products.
+      description: >
+        Server-rendered HTML (docs/design.md#site-pages): a card per Public product with its default Channel's newest Build. Off when the deployment config sets pages.index to false.
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: The Product is Private.
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: There is no such page, or the index pages are turned off.
+          content:
+            text/html:
+              schema:
+                type: string
+  /p/{applicationId}:
+    get:
+      operationId: getProductPage
+      summary: A Product's Channels.
+      description: >
+        Server-rendered HTML (docs/design.md#site-pages): the Product's Channels and pull requests that have Builds, each with its newest. Off when the deployment config sets pages.index to false.
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ApplicationId"
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: The Product is Private.
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: There is no such page, or the index pages are turned off.
+          content:
+            text/html:
+              schema:
+                type: string
+  /p/{applicationId}/c/{channel}:
+    get:
+      operationId: getChannelPage
+      summary: A Channel's Builds.
+      description: >
+        Server-rendered HTML (docs/design.md#site-pages): the Channel's Builds, newest first, or for an ended Channel without Builds, what happened and the default Channel's newest.
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ApplicationId"
+        - name: channel
+          in: path
+          required: true
+          description: The Channel's name, slashes included (pr/142).
+          schema:
+            $ref: "#/components/schemas/ChannelName"
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: The Product is Private.
+          content:
+            text/html:
+              schema:
+                type: string
+        "404":
+          description: There is no such page, or the index pages are turned off.
+          content:
+            text/html:
+              schema:
+                type: string
   /b/{buildId}:
     get:
       operationId: getBuildPage
