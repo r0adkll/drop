@@ -382,7 +382,7 @@ together. A Deployment runs the release its deploy workflow pins
   `.dev.vars` on the deployed Worker without deploying, and `./drop dev` runs the Worker locally
   with its local D1 in the Deployment repository's `.wrangler/state`.
 - There is no admin interface in milestone 1. Emergencies (for example a Build that leaked a
-  secret) are handled with a documented `wrangler` script that deletes a Build.
+  secret) are handled with `./drop delete-build` ([Deleting a Build](#deleting-a-build)).
 
 ## Retention
 
@@ -397,3 +397,16 @@ together. A Deployment runs the release its deploy workflow pins
   follows it, so files that other deletions missed (a replaced attempt's, say) are collected too.
   It then edits each closed pull request's comment down to the deleted note once all its Builds are
   gone, editing only: a comment deleted by hand isn't posted again.
+
+## Deleting a Build
+
+- `./drop delete-build <id>` in the Deployment repository removes one Build at once, for example
+  one that leaked a secret. It shows the Build and asks first (`--yes` skips that), marks it
+  deleted in D1 as removed by the operator, drops any upload in flight for it, and deletes its APK
+  from R2 straight away. The icon is kept, as retention keeps it.
+- A removed Build's page says "This Build was removed" and that the Deployment's operator removed
+  it, with the expired page's layout and its link to the Channel's newest Build. D1 records why
+  each Build was deleted (`retention` or `operator`).
+- A later attempt of the same run is refused with `build_removed`, so re-running the workflow
+  can't bring it back; a new run uploads a new Build. Download caches may serve the APK for up to
+  five more minutes (`max-age=300`). The pull request comment catches up at its next update.

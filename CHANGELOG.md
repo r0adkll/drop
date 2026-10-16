@@ -6,6 +6,13 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Added
+
+- Deployment: `./drop delete-build <id>` removes a Build at once, such as one that leaked a secret.
+  Its APK is deleted, its Build page says the operator removed it, and a re-run of its workflow
+  can't upload it again. Deployment repositories made before this need the new `drop` script from
+  `deployment/template/drop`.
+
 ### Changed
 
 - Server: reopening a pull request opens its Channel again, so its runs can upload once more, and

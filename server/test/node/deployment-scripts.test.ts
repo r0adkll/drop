@@ -61,6 +61,7 @@ describe("./drop", () => {
     expect(unknown.status).toBe(2);
     expect(unknown.stderr).toContain("Usage: ./drop <command>");
     expect(run(join(dir, "drop"), ["help"]).stdout).toContain("setup [options]");
+    expect(run(join(dir, "drop"), ["help"]).stdout).toContain("delete-build <id>");
   });
 
   it("runs setup from a checkout of the pinned ref, installing dependencies once", () => {

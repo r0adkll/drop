@@ -188,14 +188,18 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
   // Upload row. The confirmed Build, if any, is left untouched until completeUpload swaps it.
   const [confirmed, inFlight] = await Promise.all([
     db
-      .prepare("SELECT id, run_attempt FROM builds WHERE application_id = ? AND run_id = ?")
+      .prepare("SELECT id, run_attempt, deleted_reason FROM builds WHERE application_id = ? AND run_id = ?")
       .bind(request.applicationId, claims.runId)
-      .first<{ id: string; run_attempt: number }>(),
+      .first<{ id: string; run_attempt: number; deleted_reason: string | null }>(),
     db
       .prepare("SELECT build_id, file_key, icon_key FROM uploads WHERE application_id = ? AND run_id = ?")
       .bind(request.applicationId, claims.runId)
       .first<{ build_id: string; file_key: string; icon_key: string | null }>(),
   ]);
+  // A Build the operator removed stays removed: re-running its workflow doesn't bring it back.
+  if (confirmed?.deleted_reason === "operator") {
+    throw new ApiError(409, "build_removed", `Build ${confirmed.id} from run ${claims.runId} was removed by this Drop deployment's operator.`);
+  }
   if (!mayUpload(confirmed?.run_attempt ?? null, claims.runAttempt)) {
     throw new ApiError(409, "build_exists_for_run", `Run ${claims.runId} attempt ${confirmed!.run_attempt} already uploaded ${request.applicationId}; only a later attempt can replace it.`);
   }

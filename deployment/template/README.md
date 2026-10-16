@@ -42,3 +42,5 @@ You need Node.js 24 or later, git, and the [GitHub CLI](https://cli.github.com) 
   and push.
 - **Rotate the GitHub App's or R2's secrets:** update `.dev.vars`, then `./drop setup --push-secrets`.
 - **Try it locally:** `./drop dev`.
+- **Remove a Build now**, such as one that leaked a secret: `./drop delete-build <id>`, with the ID
+  from its Build page's URL (`/b/<id>`). Its APK is deleted and its page says it was removed.

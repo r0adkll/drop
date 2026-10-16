@@ -298,7 +298,7 @@ export interface components {
          * @description A stable, machine-readable reason. New codes may be added; clients treat an unknown code as a generic failure.
          * @enum {string}
          */
-        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "owner_not_listed" | "app_not_installed" | "repository_not_selected" | "webhook_signature_invalid" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch" | "product_not_found" | "sign_in_required";
+        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "owner_not_listed" | "app_not_installed" | "repository_not_selected" | "webhook_signature_invalid" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_removed" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch" | "product_not_found" | "sign_in_required";
         WebhookResult: {
             /**
              * @description Whether Drop recorded anything from the event.

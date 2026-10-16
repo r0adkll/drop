@@ -24,6 +24,8 @@ export interface PageBuild {
   signerSha256: string;
   hasIcon: boolean;
   deletedAt: number | null;
+  /** Why it was deleted: by retention, or removed by the Deployment's operator. */
+  deletedReason: "retention" | "operator" | null;
 }
 
 /** Another Build a page links to: the newest of a Channel. */
@@ -81,6 +83,7 @@ interface BuildRow {
   signer_sha256: string;
   icon_key: string | null;
   deleted_at: number | null;
+  deleted_reason: "retention" | "operator" | null;
 }
 
 interface LinkedRow {
@@ -129,7 +132,7 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
       `SELECT b.id, b.application_id, b.label, b.version_name, b.version_code, p.repository, p.repository_visibility,
          b.channel_id, c.name AS channel_name, c.pull_request, c.ended_at, b.run_id, b.run_number, b.workflow,
          b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.uploaded_at, b.file_size, b.file_sha256,
-         b.signer_sha256, b.icon_key, b.deleted_at
+         b.signer_sha256, b.icon_key, b.deleted_at, b.deleted_reason
        FROM builds b JOIN products p ON p.application_id = b.application_id JOIN channels c ON c.id = b.channel_id
        WHERE b.id = ?`,
     )
@@ -159,6 +162,7 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
     signerSha256: row.signer_sha256,
     hasIcon: hasIcon(row.application_id, row.icon_key),
     deletedAt: row.deleted_at,
+    deletedReason: row.deleted_reason,
   };
   const newest = linked(await db.prepare(NEWEST).bind(row.channel_id).first<LinkedRow>());
 

@@ -100,10 +100,13 @@ function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, 
 
 function expiredPage(build: PageBuild, next: Extract<BuildPageModel, { kind: "expired" }>["next"], ctx: RenderContext): string {
   const channel = build.channel.name;
-  const chips = `<span class="chip">${esc(channel)}</span><span class="chip">Expired</span>`;
+  const removed = build.deletedReason === "operator";
+  const chips = `<span class="chip">${esc(channel)}</span><span class="chip">${removed ? "Removed" : "Expired"}</span>`;
 
   let explanation: string;
-  if (next.because === "channel_ended" && build.channel.pullRequest !== null && build.channel.endedAt !== null) {
+  if (removed) {
+    explanation = `This Drop deployment’s operator removed it on ${date(build.deletedAt!)}.`;
+  } else if (next.because === "channel_ended" && build.channel.pullRequest !== null && build.channel.endedAt !== null) {
     explanation =
       `Pull request #${build.channel.pullRequest} was closed on ${date(build.channel.endedAt)}, and the Builds on ` +
       `<code>${esc(channel)}</code> were deleted ${hoursLater(closedPullRequestHours(build.applicationId))}.`;
@@ -135,20 +138,20 @@ function expiredPage(build: PageBuild, next: Extract<BuildPageModel, { kind: "ex
     ["Commit", commitLink(build, true)],
     ["CI run", runLink(build)],
     ["Uploaded", time(build.uploadedAt)],
-    ["Deleted", time(build.deletedAt!)],
+    [removed ? "Removed" : "Deleted", time(build.deletedAt!)],
   );
 
   const body =
     `<header class="head"><div class="wrap">${appRow(build, chips, true)}` +
-    `<div class="hero"><h1>This Build has expired</h1><p class="lede">${explanation}</p></div></div></header>` +
+    `<div class="hero"><h1>${removed ? "This Build was removed" : "This Build has expired"}</h1><p class="lede">${explanation}</p></div></div></header>` +
     `<main class="wrap body"><section class="details" aria-labelledby="about"><h2 class="label" id="about">About this Build</h2>` +
     `${dl(facts)}${technical(build)}</section>${nextPanel}</main>${footer(ctx)}`;
 
   return document(
     {
-      title: `Expired: ${build.name} ${version(build)}`,
-      description: "This Build has expired.",
-      ogTitle: `${build.name} ${version(build)} (expired)`,
+      title: `${removed ? "Removed" : "Expired"}: ${build.name} ${version(build)}`,
+      description: removed ? "This Build was removed." : "This Build has expired.",
+      ogTitle: `${build.name} ${version(build)} (${removed ? "removed" : "expired"})`,
       url: pageUrl(ctx, build.id),
       image: build.hasIcon ? `${ctx.baseUrl}/b/${build.id}/icon` : null,
     },

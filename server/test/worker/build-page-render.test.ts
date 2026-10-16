@@ -29,6 +29,7 @@ export function pageBuild(overrides: Partial<PageBuild> = {}): PageBuild {
     signerSha256: "3a9fc2".padEnd(64, "0"),
     hasIcon: true,
     deletedAt: null,
+    deletedReason: null,
     ...overrides,
   };
 }
@@ -98,6 +99,18 @@ describe("the Build page", () => {
     expect(html).toContain('href="/b/Rt4wN8cZ">Open the newest Build</a>');
     expect(html).not.toContain("Newest on pr/142");
     expect(html).toContain("Until <time datetime=\"2026-10-22T14:02:00.000Z\">Oct 22, 2026, 14:02 UTC</time>, 7 days after upload");
+  });
+
+  it("says plainly that the operator removed a Build, still linking to the newest", () => {
+    const build = pageBuild({ deletedAt: UPLOADED + DAY, deletedReason: "operator" });
+    const { html } = render({ kind: "expired", build, next: { channel: "pr/142", build: newerBuild, because: "channel_open" } });
+    expect(html).toContain("<h1>This Build was removed</h1>");
+    expect(html).toMatch(/This Drop deployment’s operator removed it on <time [^>]*data-date>/);
+    expect(html).toContain('<span class="chip">Removed</span>');
+    expect(html).toContain("<dt>Removed</dt>");
+    expect(html).not.toContain("are deleted");
+    expect(html).toContain('href="/b/Rt4wN8cZ">Open its Build page</a>');
+    expect(html).toContain('<meta property="og:title" content="Trailhead 2.8.0 (4127) (removed)">');
   });
 
   it("explains an expired Build on an open Channel and links to its newest", () => {

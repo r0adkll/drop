@@ -20,6 +20,8 @@ Commands:
   deploy [options]   Deploy from this machine. CI deploys every push to main.
                      Options: --secrets (upload .dev.vars too), --dry-run
   dev [args]         Run the Worker locally with wrangler dev; extra arguments go to wrangler.
+  delete-build <id>  Remove a Build now, such as one that leaked a secret: its page says it was
+                     removed and its APK is deleted. Options: --yes (skip the confirmation)
   version            Print the Drop repository and ref this deployment pins.
   help               Show this help.
 EOF
@@ -91,7 +93,7 @@ command="${1:-help}"
 [ $# -gt 0 ] && shift
 
 case "$command" in
-  setup | deploy | dev)
+  setup | deploy | dev | delete-build)
     read_pin
     sync_checkout
     export DROP_DEPLOYMENT_DIR="$root"
@@ -100,6 +102,7 @@ case "$command" in
       setup) exec node scripts/setup.ts "$@" ;;
       deploy) exec node scripts/deployment.ts deploy "$@" ;;
       dev) exec node scripts/deployment.ts dev "$@" ;;
+      delete-build) exec node scripts/deployment.ts delete-build "$@" ;;
     esac
     ;;
   version)

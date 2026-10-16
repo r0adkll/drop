@@ -476,6 +476,7 @@ components:
         - channel_ended
         - default_branch_ref_invalid
         - build_exists_for_run
+        - build_removed
         - build_not_found
         - build_run_mismatch
         - file_missing

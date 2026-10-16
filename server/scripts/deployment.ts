@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { deleteBuild, parseDeleteBuildArgs } from "./delete-build.ts";
 import { lockErrors, type CloudflareLock, type LockFile } from "./lock.ts";
 import { deploymentPaths, GENERATED_WRANGLER_CONFIG, SERVER_DIR, type DeploymentPaths } from "./paths.ts";
 import { configErrors } from "./validate-config.ts";
@@ -12,6 +13,7 @@ import { deploymentWranglerConfig, parseJsonc, type WranglerConfig } from "./wra
 //
 // Usage: node scripts/deployment.ts deploy [--secrets] [--dry-run]
 //        node scripts/deployment.ts dev [-- <wrangler dev args>]
+//        node scripts/deployment.ts delete-build <build-id> [--yes]
 //        node scripts/deployment.ts wrangler-config
 
 export interface Deployment {
@@ -81,6 +83,12 @@ function runWrangler(steps: string[][], env: NodeJS.ProcessEnv): void {
   }
 }
 
+function captureWrangler(args: string[], env: NodeJS.ProcessEnv): string {
+  const result = spawnSync("npx", ["--no-install", "wrangler", ...args], { cwd: SERVER_DIR, env, encoding: "utf8", stdio: ["inherit", "pipe", "inherit"] });
+  if (result.status !== 0) throw new Error(`wrangler ${args.slice(0, 3).join(" ")} failed.`);
+  return result.stdout;
+}
+
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
   const paths = deploymentPaths();
@@ -99,11 +107,20 @@ async function main(): Promise<void> {
       if (!args.includes("--dry-run")) console.log(`Deployed ${deployment.lock.cloudflare.workerName} to ${deployment.config.url}.`);
       return;
     }
+    case "delete-build": {
+      const { id, yes } = parseDeleteBuildArgs(args);
+      const { terminalPrompts } = await import("./prompts.ts");
+      await deleteBuild(
+        { id, yes, configFile, bucket: deployment.lock.cloudflare.r2Bucket },
+        { wrangler: (wranglerArgs) => captureWrangler(wranglerArgs, env), confirm: terminalPrompts.confirm, log: console.log, now: Date.now },
+      );
+      return;
+    }
     case "dev":
       runWrangler(devSteps({ configFile, devVars: paths.devVars, localState: paths.localState, args: args.filter((arg) => arg !== "--") }), env);
       return;
     default:
-      throw new Error("Usage: node scripts/deployment.ts deploy [--secrets] [--dry-run] | dev [-- <wrangler args>] | wrangler-config");
+      throw new Error("Usage: node scripts/deployment.ts deploy [--secrets] [--dry-run] | dev [-- <wrangler args>] | delete-build <build-id> [--yes] | wrangler-config");
   }
 }
 

@@ -213,6 +213,18 @@ describe("POST /api/v1/uploads", () => {
       await expect.poll(() => env.BUILDS.head(oldKey)).toBeNull();
     });
 
+    it("refuses a later attempt of a run whose Build the operator removed", async () => {
+      const t = await createTestApp();
+      const applicationId = uniqueApplicationId();
+      const run = nextRun();
+      const first = await create(t, sized(applicationId), { run_id: run });
+      await confirm(t, first.body.buildId, 1, { run_id: run });
+      await env.DB.prepare("UPDATE builds SET deleted_at = 1, deleted_reason = 'operator' WHERE id = ?").bind(first.body.buildId).run();
+
+      const again = await create(t, sized(applicationId), { run_id: run, run_attempt: "2" });
+      expect(again).toMatchObject({ status: 409, body: { code: "build_removed" } });
+    });
+
     it("leaves a confirmed Build in place when the later attempt never completes", async () => {
       const t = await createTestApp();
       const applicationId = uniqueApplicationId();

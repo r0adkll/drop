@@ -51,7 +51,7 @@ async function expireBuilds(db: D1Database, now: number): Promise<string[]> {
   });
   // The file key guards against a later attempt of the run swapping in a fresh file meanwhile.
   const statements = expired.map((row) =>
-    db.prepare("UPDATE builds SET deleted_at = ? WHERE id = ? AND file_key = ? AND deleted_at IS NULL").bind(now, row.id, row.file_key),
+    db.prepare("UPDATE builds SET deleted_at = ?, deleted_reason = 'retention' WHERE id = ? AND file_key = ? AND deleted_at IS NULL").bind(now, row.id, row.file_key),
   );
   const marked: string[] = [];
   for (let i = 0; i < statements.length; i += 50) {
