@@ -229,6 +229,29 @@ paths:
                 type: string
         default:
           $ref: "#/components/responses/Error"
+  /b/{buildId}/qr.png:
+    get:
+      operationId: getBuildQrCodePng
+      summary: The QR code as a PNG.
+      description: >
+        For Slack and Discord messages, which don't render SVG. Black on white with a quiet zone,
+        8 pixels per module; it never changes, so it may be cached forever.
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+      responses:
+        "200":
+          description: The QR code.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Error"
   /b/{buildId}/icon:
     get:
       operationId: getBuildIcon

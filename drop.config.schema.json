@@ -37,7 +37,7 @@
       }
     },
     "webhooks": {
-      "description": "Outgoing webhooks sent when a Build lands, by name. Each URL is the Worker secret WEBHOOK_<NAME>, upper-cased with dashes as underscores.",
+      "description": "Outgoing webhooks sent when a Build lands, by name. Each URL is the Worker secret WEBHOOK_<NAME>, upper-cased with dashes as underscores; a json webhook is signed with WEBHOOK_<NAME>_SECRET when set.",
       "type": "object",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9-]*$"
@@ -122,7 +122,7 @@
           }
         },
         "channels": {
-          "description": "Channel patterns to send for. Omit for every Channel.",
+          "description": "Channel patterns to send for, such as main or pr/*; * is every Channel. Omit for the Product's default Channel only.",
           "type": "array",
           "uniqueItems": true,
           "minItems": 1,

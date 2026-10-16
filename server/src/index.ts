@@ -14,7 +14,8 @@ import { loadBuildPage } from "./build-page/model";
 import { PAGE_SCRIPT, renderBuildPage } from "./build-page/render";
 import { serveDownload } from "./download";
 import { DROP_ICON_SVG } from "./icon";
-import { qrSvg } from "./qr";
+import { sendBuildWebhooks } from "./notifications";
+import { qrPng, qrSvg } from "./qr";
 import { applyRetention } from "./retention-job";
 import { checkForUpdate, parseUpdateCheck } from "./update-check";
 import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
@@ -31,6 +32,8 @@ export interface Dependencies {
   /** The deployment's GitHub App, or undefined until setup has created it and its key is set. */
   github: (env: Env) => GitHubApp | undefined;
   now: () => number;
+  /** The fetch outgoing webhooks use; tests replace it. */
+  webhookFetch?: typeof fetch;
 }
 
 const BUILD_ID = /^[0-9A-Za-z]{8}$/;
@@ -84,8 +87,17 @@ export function createApp(deps: Dependencies) {
     const buildId = c.req.param("buildId");
     if (!BUILD_ID.test(buildId)) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
     const claims = await claimsOf(c);
+    // Only a Build's first confirmation goes to webhooks; a later attempt of its run posts nothing.
+    const isNew = !(await c.env.DB.prepare("SELECT 1 FROM builds WHERE id = ?").bind(buildId).first());
     const uploaded = await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId);
     waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
+    if (isNew) {
+      waitUntil(c)(
+        sendBuildWebhooks(c.env as unknown as Record<string, unknown> & { DB: D1Database }, config.url, buildId, { fetch: deps.webhookFetch }).catch((error: unknown) => {
+          console.error(`Sending webhooks for Build ${buildId} failed:`, error);
+        }),
+      );
+    }
     return c.json(uploaded);
   });
 
@@ -127,6 +139,15 @@ export function createApp(deps: Dependencies) {
     const buildId = await existingBuild(c.env, c.req.param("buildId"));
     return c.body(qrSvg(buildUrl(buildId)), 200, {
       "content-type": "image/svg+xml",
+      "cache-control": "public, max-age=31536000, immutable",
+    });
+  });
+
+  // For chat apps that don't render SVG (docs/design.md#notifications).
+  app.get("/b/:buildId/qr.png", async (c) => {
+    const buildId = await existingBuild(c.env, c.req.param("buildId"));
+    return c.body(await qrPng(buildUrl(buildId)), 200, {
+      "content-type": "image/png",
       "cache-control": "public, max-age=31536000, immutable",
     });
   });

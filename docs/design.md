@@ -242,6 +242,21 @@ patterns (`main`, `pr/*`) it covers and a format: `slack` or `discord` (a ready-
 `json` (the Build record, HMAC-signed). Its URL is a Worker secret named after it, since webhook URLs
 are credentials and the deployment repository may be public. Milestone 1 sends no other events.
 
+Agreed from the mockups on the [notifications canvas](https://claude.ai/artifact/BVzNnLnUvA6CbuRKZ5jfeN):
+
+- A message carries what a block of the pull request comment does: name, version and Channel,
+  the headline (the pull request title, else the commit message's first line), commit, CI run,
+  size, the app's icon, a link or button to the Build page, and the Build page's QR code as a
+  PNG (`/b/<id>/qr.png`), since Slack and Discord don't render SVG. Slack gets a Block Kit
+  message, Discord an embed; text from the upload is escaped and Discord's mentions are off, so a
+  commit message can't ping anyone. `json` sends the Build record, signed as
+  `X-Drop-Signature-256: sha256=<hex HMAC>` with the Worker secret `WEBHOOK_<NAME>_SECRET` when set.
+- A webhook without Channel patterns covers only the Product's default Channel; `pr/*` (or `*`)
+  opts in to pull request Builds, which the pull request comment already announces.
+- Each Build is announced once, on its first confirmation; a later attempt of its run posts
+  nothing. A failed delivery (network, 429 or 5xx) is retried twice, then logged; webhooks never
+  hold up or fail the upload. Builds of Private products are not announced.
+
 ## Releases
 
 The SDK is published to Maven Central under `com.r0adkll.drop` with gradle-maven-publish-plugin,
