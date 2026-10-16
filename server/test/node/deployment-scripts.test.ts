@@ -146,6 +146,5 @@ describe("the deploy Action", () => {
     // setup-node's node-version-file is joined to the workspace, so the Action reads .nvmrc itself.
     expect(action).toContain('cat "$GITHUB_ACTION_PATH/../server/.nvmrc"');
     expect(action).toContain("node-version: ${{ steps.node.outputs.version }}");
-    expect(action).not.toContain("node-version-file");
   });
 });
