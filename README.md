@@ -92,6 +92,18 @@ jobs:
           apk: app/build/outputs/apk/internal/app-internal.apk
 ```
 
+A Build's headline is its pull request title, else its commit message's first line. To say more,
+pass `notes`, such as a release's description: its first line becomes the headline and the rest is
+shown as What's new on the Build page and in the Update sheet.
+
+```yaml
+      - uses: r0adkll/drop/action@v0
+        with:
+          server: https://drop.example.com
+          apk: app/build/outputs/apk/beta/app-beta.apk
+          notes: ${{ github.event.release.body }}
+```
+
 How the server checks uploads is described in [`docs/design.md`](docs/design.md#upload-authentication).
 
 ## Adding Drop to your app

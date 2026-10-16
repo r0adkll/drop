@@ -541,8 +541,13 @@ components:
           format: date-time
         headline:
           description: >
-            What changed, as the Build page's headline: the pull request title, else the commit
-            message's first line, else the app's name.
+            What changed, as the Build page's headline: the first line of the Build's release notes,
+            else the pull request title, else the commit message's first line, else the app's name.
+          type: string
+        whatsNew:
+          description: >
+            The Build's release notes after their first line: plain text whose line breaks are
+            kept. Absent when there are none.
           type: string
         commitSha:
           type: string
@@ -630,6 +635,13 @@ components:
         pullRequestTitle:
           type: string
           maxLength: 1000
+        releaseNotes:
+          description: >
+            What changed, from the Action's `notes` input. The first line becomes the Build's
+            headline, ahead of the pull request title, and the rest its What's new. Line endings are
+            normalised and outer whitespace trimmed; blank notes are none.
+          type: string
+          maxLength: 4000
     FileDescriptor:
       type: object
       additionalProperties: false

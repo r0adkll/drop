@@ -22,6 +22,7 @@ export function pageBuild(overrides: Partial<PageBuild> = {}): PageBuild {
     commitSha: "9f3c2a1".padEnd(40, "0"),
     commitMessage: "Cache map tiles in the background when a trail is saved\n\nLonger body.",
     pullRequestTitle: "Offline map tiles for saved trails",
+    releaseNotes: null,
     uploadedAt: UPLOADED,
     fileSize: 38_412_345,
     fileSha256: "b41c".padEnd(64, "0"),
@@ -71,6 +72,22 @@ describe("the Build page", () => {
     const fromName = render({ kind: "available", build: pageBuild({ pullRequestTitle: null, commitMessage: null }), newer: null, kept: { kind: "while_newest" } });
     expect(fromName.html).toContain("<h1>Trailhead</h1>");
     expect(fromName.html).toContain("<dt>Commit</dt>");
+  });
+
+  it("leads with release notes' first line and shows the rest as What's new, links and line breaks kept", () => {
+    const releaseNotes = "Trail difficulty filters\n\n• Filter by difficulty.\nFull notes: https://github.com/your-org/trailhead/releases/tag/v2.9.0.";
+    const { html } = render({ kind: "available", build: pageBuild({ releaseNotes }), newer: null, kept: { kind: "while_newest" } });
+    expect(html).toContain("<h1>Trail difficulty filters</h1>");
+    expect(html).toContain(">9f3c2a1</a><span>Cache map tiles in the background when a trail is saved</span>");
+    expect(html).toContain('<meta name="description" content="Trail difficulty filters · pr/142">');
+    expect(html).toMatch(/<section class="details"[^>]*><section class="notes" aria-labelledby="whats-new"><h2 class="label" id="whats-new">What’s new<\/h2>/);
+    expect(html).toContain(
+      '<p class="notes-text">• Filter by difficulty.\nFull notes: <a href="https://github.com/your-org/trailhead/releases/tag/v2.9.0">https://github.com/your-org/trailhead/releases/tag/v2.9.0</a>.</p>',
+    );
+
+    const headlineOnly = render({ kind: "available", build: pageBuild({ releaseNotes: "Just a headline" }), newer: null, kept: { kind: "while_newest" } });
+    expect(headlineOnly.html).toContain("<h1>Just a headline</h1>");
+    expect(headlineOnly.html).not.toContain("What’s new");
   });
 
   it("points a superseded Build at its Channel's newest and says when it goes", () => {
@@ -129,11 +146,13 @@ describe("the Build page", () => {
 
   it("escapes every value that came from an upload", () => {
     const hostile = '"><script>alert(1)</script>';
-    const build = pageBuild({ name: hostile, pullRequestTitle: hostile, commitMessage: hostile, workflow: hostile, versionName: hostile, channel: { name: "pr/142", pullRequest: 142, endedAt: null } });
+    const build = pageBuild({ name: hostile, pullRequestTitle: hostile, commitMessage: hostile, releaseNotes: `${hostile}\n${hostile} javascript:alert(1) https://x.example/"onmouseover=alert(1)`, workflow: hostile, versionName: hostile, channel: { name: "pr/142", pullRequest: 142, endedAt: null } });
     const { html } = render({ kind: "available", build, newer: { ...newerBuild, name: hostile, versionName: hostile }, kept: { kind: "while_newest" } });
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).toContain("&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html.match(/<script>/g)).toHaveLength(1);
+    expect(html).not.toContain('href="javascript');
+    expect(html).not.toContain('"onmouseover');
   });
 });
 

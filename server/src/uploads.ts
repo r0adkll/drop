@@ -1,6 +1,7 @@
 import type { AllowedRepositories } from "./allowed-repositories";
 import { config } from "./config";
 import { ApiError } from "./errors";
+import { normaliseReleaseNotes } from "./headline";
 import type { components } from "./generated/openapi";
 import { newBuildId } from "./ids";
 import type { GitHubClaims } from "./oidc";
@@ -27,6 +28,8 @@ export function buildUrl(id: string): string {
 // Request validation. Hand-written to keep request CPU low; mirrors CreateUploadRequest in
 // openapi.yaml.
 
+/** The longest release notes an upload may carry (docs/design.md#build-pages). */
+export const RELEASE_NOTES_MAX = 4000;
 const SHA256 = /^[0-9a-f]{64}$/;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const APPLICATION_ID = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -55,7 +58,7 @@ export function parseCreateUpload(body: unknown): CreateUploadRequest {
 
   const root = object(body, "body", [
     "applicationId", "versionCode", "versionName", "label", "signerSha256", "apk", "icon", "channel",
-    "defaultBranch", "commit", "pullRequestTitle",
+    "defaultBranch", "commit", "pullRequestTitle", "releaseNotes",
   ]);
   const apk = object(root.apk, "apk", ["size", "sha256"]);
   const commit = object(root.commit, "commit", ["sha", "message"]);
@@ -73,6 +76,12 @@ export function parseCreateUpload(body: unknown): CreateUploadRequest {
     commit: { sha: string(commit.sha, "commit.sha", 40, COMMIT_SHA), message: optionalString(commit.message, "commit.message", 10_000) },
     pullRequestTitle: optionalString(root.pullRequestTitle, "pullRequestTitle", 1000),
   };
+  if (root.releaseNotes !== undefined) {
+    if (typeof root.releaseNotes !== "string" || root.releaseNotes.length > RELEASE_NOTES_MAX) {
+      fail("releaseNotes", `must be a string of at most ${RELEASE_NOTES_MAX} characters`);
+    }
+    request.releaseNotes = root.releaseNotes as string;
+  }
   if (root.icon !== undefined) {
     const icon = object(root.icon, "icon", ["size", "sha256", "contentType"]);
     if (icon.contentType !== "image/png" && icon.contentType !== "image/webp") fail("icon.contentType", "must be image/png or image/webp");
@@ -197,21 +206,21 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
   await db
     .prepare(
       `INSERT INTO uploads (build_id, application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name,
-         ref, commit_sha, built_sha, commit_message, pull_request_title, version_code, version_name, label,
+         ref, commit_sha, built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label,
          signer_sha256, file_size, file_sha256, file_key, icon_key, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (build_id) DO UPDATE SET channel_id = excluded.channel_id, run_attempt = excluded.run_attempt,
          workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
          ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
          commit_message = excluded.commit_message, pull_request_title = excluded.pull_request_title,
-         version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
+         release_notes = excluded.release_notes, version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
          signer_sha256 = excluded.signer_sha256, file_size = excluded.file_size, file_sha256 = excluded.file_sha256,
          file_key = excluded.file_key, icon_key = excluded.icon_key, created_at = excluded.created_at`,
     )
     .bind(
       id, request.applicationId, channelId, claims.runId, claims.runAttempt, claims.workflow, claims.runNumber,
       claims.eventName, claims.ref, request.commit.sha, claims.sha, request.commit.message ?? null,
-      request.pullRequestTitle ?? null, request.versionCode, request.versionName ?? null, request.label ?? null,
+      request.pullRequestTitle ?? null, normaliseReleaseNotes(request.releaseNotes), request.versionCode, request.versionName ?? null, request.label ?? null,
       request.signerSha256, request.apk.size, request.apk.sha256, fileKey, iconKey, now,
     )
     .run();
@@ -276,7 +285,7 @@ async function reserveBuildId(db: D1Database): Promise<string> {
 }
 
 const BUILD_COLUMNS = `application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref, commit_sha,
-  built_sha, commit_message, pull_request_title, version_code, version_name, label, signer_sha256, file_size,
+  built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label, signer_sha256, file_size,
   file_sha256, file_key`;
 
 export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" | "now" | "waitUntil">, buildId: string): Promise<UploadedBuild> {
@@ -335,7 +344,7 @@ export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" |
            workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
            ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
            commit_message = excluded.commit_message, pull_request_title = excluded.pull_request_title,
-           version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
+           release_notes = excluded.release_notes, version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
            signer_sha256 = excluded.signer_sha256, file_size = excluded.file_size, file_sha256 = excluded.file_sha256,
            file_key = excluded.file_key, icon_key = excluded.icon_key, uploaded_at = excluded.uploaded_at,
            deleted_at = NULL`,

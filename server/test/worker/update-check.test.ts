@@ -128,6 +128,17 @@ describe("the Update check", () => {
     expect((await check({ applicationId: lonely, channel: "pr/7", runId: 100 })).body).toEqual({ status: "channel_ended", update: null });
   });
 
+  it("leads with release notes ahead of the pull request title, the rest as whatsNew", async () => {
+    const applicationId = uniqueApplicationId();
+    await seedBuild({ applicationId, channel: "pr/9", runId: 101, pullRequestTitle: "Offline map tiles", releaseNotes: "Beta 2.9\n\n• Filters" });
+    const { body } = await check({ applicationId, channel: "pr/9", runId: 100 });
+    expect(body).toMatchObject({ update: { headline: "Beta 2.9", whatsNew: "• Filters" } });
+
+    const plain = uniqueApplicationId();
+    await seedBuild({ applicationId: plain, channel: "main", runId: 101, commitMessage: "Fix\n\nBody" });
+    expect((await check({ applicationId: plain, channel: "main", runId: 100 })).body.update).not.toHaveProperty("whatsNew");
+  });
+
   it("uses the pull request title as a Pull request channel Build's headline", async () => {
     const applicationId = uniqueApplicationId();
     await seedBuild({ applicationId, channel: "pr/9", runId: 101, pullRequestTitle: "Offline map tiles", commitMessage: "WIP" });

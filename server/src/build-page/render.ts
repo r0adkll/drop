@@ -1,4 +1,5 @@
 import { closedPullRequestHours } from "../config";
+import { describeChange, firstLine } from "../headline";
 import { DROP_ICON_SVG } from "../icon";
 import { qrSvg } from "../qr";
 import { buildDays, pullRequestBuildDays, type Kept } from "../retention";
@@ -37,7 +38,7 @@ export function renderBuildPage(model: BuildPageModel, ctx: RenderContext): Rend
 function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, ctx: RenderContext): string {
   const url = pageUrl(ctx, build.id);
   const download = `/b/${build.id}/download`;
-  const { headline, commitLine } = headlineOf(build);
+  const { headline, commitLine, whatsNew } = headlineOf(build);
   const ended = build.channel.endedAt !== null;
   const chips =
     `<span class="chip">${esc(build.channel.name)}</span>` +
@@ -76,8 +77,12 @@ function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, 
   const body =
     `<header class="head"><div class="wrap">${banner}${appRow(build, chips)}` +
     `<div class="hero"><h1>${esc(headline)}</h1>${commitLine ?? ""}</div></div></header>` +
-    `<main class="wrap body"><section class="details" aria-labelledby="about"><h2 class="label" id="about">About this Build</h2>` +
-    `${dl(facts)}${help}${technical(build)}</section>${qrPanel}</main>` +
+    `<main class="wrap body"><section class="details" aria-labelledby="about">` +
+    (whatsNew
+      ? `<section class="notes" aria-labelledby="whats-new"><h2 class="label" id="whats-new">What’s new</h2>` +
+        `<p class="notes-text">${linkified(whatsNew)}</p></section>`
+      : "") +
+    `<h2 class="label" id="about">About this Build</h2>${dl(facts)}${help}${technical(build)}</section>${qrPanel}</main>` +
     footer(ctx) +
     `<div class="install-bar phone-only"><a class="btn primary" href="${download}">${DOWNLOAD_ICON}Install · ${esc(formatSize(build.fileSize))}</a></div>`;
 
@@ -175,14 +180,30 @@ function messagePage(heading: string, text: string, ctx: RenderContext): string 
 // ---------------------------------------------------------------------------------------------
 // Pieces
 
-function headlineOf(build: PageBuild): { headline: string; commitLine: string | null } {
-  const message = firstLine(build.commitMessage);
+function headlineOf(build: PageBuild): { headline: string; commitLine: string | null; whatsNew: string | null } {
+  const change = describeChange(
+    { release_notes: build.releaseNotes, pull_request_title: build.pullRequestTitle, commit_message: build.commitMessage },
+    build.name,
+  );
+  const message = change.commitLine;
   const commitSpan = (text: string | null) =>
     `<p class="commit">${commitLink(build)}${text ? `<span>${esc(text)}</span>` : ""}</p>`;
-  if (build.pullRequestTitle) return { headline: build.pullRequestTitle, commitLine: commitSpan(message) };
-  if (message) return { headline: message, commitLine: commitSpan(null) };
-  // With neither, the app name leads and the commit moves into the details.
-  return { headline: build.name, commitLine: null };
+  // Under a headline from the release notes or pull request title, the commit shows with its message;
+  // under the message itself, without; with no message at all, the commit moves into the details.
+  const commitLine = build.releaseNotes || build.pullRequestTitle ? commitSpan(message) : message ? commitSpan(null) : null;
+  return { headline: change.headline, commitLine, whatsNew: change.whatsNew };
+}
+
+/** Plain text with its line breaks kept and its web addresses linked. */
+function linkified(text: string): string {
+  let html = "";
+  let at = 0;
+  for (const match of text.matchAll(/https?:\/\/[^\s<>"]+/g)) {
+    const url = match[0].replace(/[.,;:!?)\]'’]+$/, "");
+    html += esc(text.slice(at, match.index)) + `<a href="${esc(url)}">${esc(url)}</a>`;
+    at = match.index + url.length;
+  }
+  return html + esc(text.slice(at));
 }
 
 function appRow(build: PageBuild, chips: string, gone = false): string {
@@ -350,11 +371,6 @@ export function version(build: { versionName: string | null; versionCode: number
   return build.versionName ? `${build.versionName} (${build.versionCode})` : `(${build.versionCode})`;
 }
 
-export function firstLine(text: string | null): string | null {
-  const line = text?.split(/\r?\n/, 1)[0]?.trim();
-  return line ? line : null;
-}
-
 function pageUrl(ctx: RenderContext, id: string): string {
   return `${ctx.baseUrl}/b/${id}`;
 }
@@ -447,6 +463,8 @@ h1{margin:0;font-size:32px;line-height:1.15;letter-spacing:-.01em;font-weight:70
 .body{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:48px;align-items:start;padding-block:32px 24px}
 .details{display:grid;gap:22px;min-width:0}
 .label{margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.notes{display:grid;gap:10px}
+.notes-text{margin:0;white-space:pre-line;overflow-wrap:anywhere;max-width:40rem}
 .facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:10px 22px;margin:0}
 .facts dt{color:var(--muted)}
 .facts dd{margin:0;min-width:0;overflow-wrap:anywhere}

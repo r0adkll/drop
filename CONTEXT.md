@@ -36,6 +36,16 @@ The certificate a Build is signed with. A Build can only update an installed Bui
 Signer.
 _Avoid_: Signature, key
 
+**Headline**:
+The one line saying what changed in a Build: the first line of its Release notes, else its pull
+request title, else its commit message's first line.
+_Avoid_: Title, summary
+
+**Release notes**:
+Plain text a workflow attaches to a Build as it uploads it. The first line is the Headline and the
+rest is What's new, shown on the Build page and in the Update sheet.
+_Avoid_: Changelog, description
+
 **Build page**:
 The web page for a single Build, with its QR code and install button.
 _Avoid_: Download page, landing page

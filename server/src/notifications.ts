@@ -5,6 +5,7 @@
 import { isPublicProduct } from "./build-page/model";
 import { formatSize } from "./build-page/render";
 import { config, type Webhook } from "./config";
+import { describeChange } from "./headline";
 
 export interface AnnouncedBuild {
   id: string;
@@ -129,7 +130,7 @@ export async function loadAnnouncedBuild(db: D1Database, buildId: string): Promi
   const row = await db
     .prepare(
       `SELECT b.id, b.application_id, b.label, b.version_name, b.version_code, c.name AS channel, c.is_default, c.pull_request,
-         p.repository, p.repository_visibility, b.commit_sha, b.commit_message, b.pull_request_title, b.workflow, b.run_number,
+         p.repository, p.repository_visibility, b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.workflow, b.run_number,
          b.run_id, b.file_size, b.file_sha256, b.uploaded_at, b.icon_key
        FROM builds b JOIN channels c ON c.id = b.channel_id JOIN products p ON p.application_id = b.application_id WHERE b.id = ?`,
     )
@@ -137,13 +138,13 @@ export async function loadAnnouncedBuild(db: D1Database, buildId: string): Promi
     .first<{
       id: string; application_id: string; label: string | null; version_name: string | null; version_code: number; channel: string;
       is_default: number; pull_request: number | null; repository: string; repository_visibility: string; commit_sha: string;
-      commit_message: string | null; pull_request_title: string | null; workflow: string; run_number: number; run_id: number;
+      commit_message: string | null; pull_request_title: string | null; release_notes: string | null; workflow: string; run_number: number; run_id: number;
       file_size: number; file_sha256: string; uploaded_at: number; icon_key: string | null;
     }>();
   if (!row) return undefined;
   const overrides = config.products?.[row.application_id];
   const name = overrides?.displayName ?? row.label ?? row.application_id;
-  const commitLine = row.commit_message?.split(/\r?\n/, 1)[0]?.trim() || null;
+  const { headline, commitLine } = describeChange(row, name);
   return {
     isPublic: isPublicProduct(row.application_id, row.repository_visibility),
     build: {
@@ -157,7 +158,7 @@ export async function loadAnnouncedBuild(db: D1Database, buildId: string): Promi
       pullRequest: row.pull_request,
       repository: row.repository,
       commitSha: row.commit_sha,
-      headline: row.pull_request_title || commitLine || name,
+      headline,
       workflow: row.workflow,
       runNumber: row.run_number,
       runId: row.run_id,

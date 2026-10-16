@@ -3,6 +3,7 @@
 
 import { isPublicProduct } from "../build-page/model";
 import { config } from "../config";
+import { describeChange } from "../headline";
 import { keptUntil, type Kept } from "../retention";
 
 export interface BuildSummary {
@@ -70,6 +71,7 @@ interface BuildRow {
   commit_sha: string;
   commit_message: string | null;
   pull_request_title: string | null;
+  release_notes: string | null;
   workflow: string;
   run_number: number;
   run_id: number;
@@ -77,15 +79,15 @@ interface BuildRow {
 }
 
 const BUILD_COLUMNS = `b.id, b.label, b.version_name, b.version_code, b.uploaded_at, b.file_size, b.commit_sha, b.commit_message,
-  b.pull_request_title, b.workflow, b.run_number, b.run_id, b.icon_key`;
+  b.pull_request_title, b.release_notes, b.workflow, b.run_number, b.run_id, b.icon_key`;
 
 function summary(row: BuildRow, name: string): BuildSummary {
-  const commitLine = row.commit_message?.split(/\r?\n/, 1)[0]?.trim() || null;
+  const { headline, commitLine } = describeChange(row, name);
   return {
     id: row.id,
     versionName: row.version_name,
     versionCode: row.version_code,
-    headline: row.pull_request_title || commitLine || name,
+    headline,
     commitSha: row.commit_sha,
     commitLine,
     workflow: row.workflow,

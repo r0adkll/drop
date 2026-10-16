@@ -23403,6 +23403,7 @@ async function main() {
   const server = serverOrigin(getInput("server", { required: true }));
   const apkPath = getInput("apk", { required: true });
   const iconInput = getInput("icon") || void 0;
+  const releaseNotes = getInput("notes", { trimWhitespace: true }) || void 0;
   if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL) {
     throw new Error("No OIDC token is available. Give the job `permissions: id-token: write` so Drop can verify which repository and run the Build came from.");
   }
@@ -23426,7 +23427,8 @@ async function main() {
     channel,
     defaultBranch,
     commit: { sha: commit.sha, message: commit.message },
-    pullRequestTitle: commit.pullRequestTitle
+    pullRequestTitle: commit.pullRequestTitle,
+    ...releaseNotes ? { releaseNotes } : {}
   };
   const version = request.versionName ? `${request.versionName} (${request.versionCode})` : `(${request.versionCode})`;
   info(`Uploading ${request.label ?? request.applicationId} ${version} to ${channel}`);

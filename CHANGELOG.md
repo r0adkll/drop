@@ -6,6 +6,12 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Added
+
+- Action: a `notes` input for a Build's release notes. Their first line becomes the Build's
+  headline, ahead of the pull request title, and the rest is shown as What's new on the Build page
+  and in the Update sheet. Server: `whatsNew` in the update check.
+
 ### Fixed
 
 - Update sheet: Ready to install no longer promises the app reopens after updating; it says to

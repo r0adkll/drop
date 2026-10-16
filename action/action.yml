@@ -23,6 +23,12 @@ inputs:
       APK, or to one drawn from its adaptive icon; set this when the Action can't draw that, such
       as an adaptive icon with a gradient.
     required: false
+  notes:
+    description: >
+      Release notes for the Build, up to 4,000 characters of plain text. The first line becomes the
+      Build's headline, ahead of the pull request title and commit message, and the rest is shown
+      as What's new on the Build page and in the Update sheet.
+    required: false
 outputs:
   build-id:
     description: The uploaded Build's ID.

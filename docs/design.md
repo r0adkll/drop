@@ -102,11 +102,16 @@ these rules.
 
 - Build pages sit under the site pages (below): an index of Products, a page per Product and a page
   per Channel.
-- It leads with what the Build contains: the pull request title (or the commit message outside pull
-  requests) as the headline, the head commit and its message beneath, then the app's icon, name,
-  version and Channel. The Action takes the commit message from the event payload, or from
-  `git log -1` in the checkout when the event has none (`schedule`, `workflow_dispatch`); with
-  neither, the app name leads.
+- It leads with what the Build contains: its headline, the head commit and its message beneath,
+  then the app's icon, name, version and Channel. The headline is the first line of the Build's
+  release notes, else the pull request title, else the commit message's first line, else the app
+  name. The Action takes the commit message from the event payload, or from `git log -1` in the
+  checkout when the event has none (`schedule`, `workflow_dispatch`).
+- Release notes come from the Action's optional `notes` input: plain text up to 4,000 characters,
+  stored with line endings normalised and outer whitespace trimmed. Their lines after the first
+  are What's new, shown in full at the top of the details column with line breaks kept and web
+  addresses linked, never as Markdown. Notifications and comments use the headline only. Agreed
+  from boards 9–12 on the [Update sheet canvas](https://claude.ai/artifact/96tyNGZTQqfgf4r3TfWGZK).
 - On a laptop the details sit beside a QR panel with install steps, a Download APK link and Copy
   link. On a phone the QR code is dropped, Install stays pinned to the bottom of the screen, and help
   for Android's unknown-apps prompt and "App not installed" sits with the details.
@@ -180,8 +185,8 @@ version code, all read on the device. It needs no sign-in in milestone 1 and is 
   reinstall; [ADR 0006](adr/0006-signing-out-of-scope.md)), or `channel_ended` (the default
   Channel's newest Build whatever its run ID: the installed Signer's newest, else the newest,
   flagged for a reinstall, or none).
-- An Update describes what the Build page shows (name, version, headline, commit, pull request,
-  size, SHA-256) plus its download URL and when that URL expires. For now the URL is the Build's
+- An Update describes what the Build page shows (name, version, headline, What's new, commit, pull
+  request, size, SHA-256) plus its download URL and when that URL expires. For now the URL is the Build's
   `/download` route with an expiry an hour out; milestone 2 can swap in signed URLs without
   changing the contract. The SDK checks again once it has expired.
 - An Update whose version code is lower than the installed one is still offered, flagged
@@ -223,8 +228,8 @@ version code, all read on the device. It needs no sign-in in milestone 1 and is 
 Agreed from the mockups on the [Update sheet canvas](https://claude.ai/artifact/96tyNGZTQqfgf4r3TfWGZK).
 
 - A Material 3 modal bottom sheet over the app: the app's icon, "Update available", the version,
-  what changed (the Update's headline), its Channel, age and size, **Update** and **Not now**, and
-  a link to its Build page.
+  what changed (the Update's headline, then its What's new clamped to three lines with **More** and
+  **Less**), its Channel, age and size, **Update** and **Not now**, and a link to its Build page.
 - **Update** first asks for *Install unknown apps* when the app lacks it (Settings opens, and the
   sheet carries on when the app resumes), then downloads, so the only wait comes after every
   detour. Downloading shows progress; **Hide** closes the sheet while the download carries on, and
@@ -273,7 +278,7 @@ are credentials and the deployment repository may be public. Milestone 1 sends n
 Agreed from the mockups on the [notifications canvas](https://claude.ai/artifact/BVzNnLnUvA6CbuRKZ5jfeN):
 
 - A message carries what a block of the pull request comment does: name, version and Channel,
-  the headline (the pull request title, else the commit message's first line), commit, CI run,
+  the headline (as on the Build page), commit, CI run,
   size, the app's icon, a link or button to the Build page, and the Build page's QR code as a
   PNG (`/b/<id>/qr.png`), since Slack and Discord don't render SVG. Slack gets a Block Kit
   message, Discord an embed; text from the upload is escaped and Discord's mentions are off, so a

@@ -65,6 +65,18 @@ describe("POST /api/v1/uploads", () => {
     expect(status).toBe(400);
     expect(body).toEqual({ code: "invalid_request", message: "signerSha256 has an invalid format." });
     expect((await create(t, { ...uploadRequest(uniqueApplicationId()), extra: 1 })).body.code).toBe("invalid_request");
+    expect((await create(t, uploadRequest(uniqueApplicationId(), { releaseNotes: "x".repeat(4001) }))).body).toEqual({
+      code: "invalid_request",
+      message: "releaseNotes must be a string of at most 4000 characters.",
+    });
+  });
+
+  it("keeps release notes with line endings normalised, and blank notes as none", async () => {
+    const t = await createTestApp();
+    const notes = await create(t, uploadRequest(uniqueApplicationId(), { releaseNotes: "\r\n  Beta 2.9\r\n\r\n• Filters  \n" }), { run_id: nextRun() });
+    expect((await upload(notes.body.buildId))!.release_notes).toBe("Beta 2.9\n\n• Filters");
+    const blank = await create(t, uploadRequest(uniqueApplicationId(), { releaseNotes: " \n " }), { run_id: nextRun() });
+    expect((await upload(blank.body.buildId))!.release_notes).toBeNull();
   });
 
   it("starts an upload on the default Channel with presigned URLs", async () => {
@@ -229,13 +241,14 @@ describe("POST /api/v1/uploads/{id}/complete", () => {
 
   it("confirms the Build once its APK is uploaded, and again without change", async () => {
     const t = await createTestApp();
-    const p = await pending(t);
+    const p = await pending(t, { releaseNotes: "Beta 2.9" });
     await env.BUILDS.put(p.key, apkBytes, { sha256: p.sha256 });
 
     const done = await complete(t, p.buildId, { run_id: p.run });
     expect(done).toEqual({ status: 200, body: { buildId: p.buildId, buildUrl: `https://drop.example.com/b/${p.buildId}` } });
     const uploadedAt = (await build(p.buildId))!.uploaded_at;
     expect(uploadedAt).not.toBeNull();
+    expect((await build(p.buildId))!.release_notes).toBe("Beta 2.9");
 
     t.advance(1000);
     expect((await complete(t, p.buildId, { run_id: p.run })).status).toBe(200);

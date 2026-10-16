@@ -327,8 +327,10 @@ export interface components {
             versionCode: number;
             /** Format: date-time */
             uploadedAt: string;
-            /** @description What changed, as the Build page's headline: the pull request title, else the commit message's first line, else the app's name. */
+            /** @description What changed, as the Build page's headline: the first line of the Build's release notes, else the pull request title, else the commit message's first line, else the app's name. */
             headline: string;
+            /** @description The Build's release notes after their first line: plain text whose line breaks are kept. Absent when there are none. */
+            whatsNew?: string;
             commitSha: string;
             /** @description The pull request number on a Pull request channel. */
             pullRequest: number | null;
@@ -375,6 +377,8 @@ export interface components {
             defaultBranch: boolean;
             commit: components["schemas"]["CommitInfo"];
             pullRequestTitle?: string;
+            /** @description What changed, from the Action's `notes` input. The first line becomes the Build's headline, ahead of the pull request title, and the rest its What's new. Line endings are normalised and outer whitespace trimmed; blank notes are none. */
+            releaseNotes?: string;
         };
         FileDescriptor: {
             /**

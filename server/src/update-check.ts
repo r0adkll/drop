@@ -3,6 +3,7 @@
 import { isPublicProduct } from "./build-page/model";
 import { config } from "./config";
 import { ApiError } from "./errors";
+import { describeChange } from "./headline";
 import type { components } from "./generated/openapi";
 import { buildUrl } from "./uploads";
 
@@ -62,13 +63,14 @@ interface BuildRow {
   commit_sha: string;
   commit_message: string | null;
   pull_request_title: string | null;
+  release_notes: string | null;
   signer_sha256: string;
   file_size: number;
   file_sha256: string;
 }
 
 const BUILD_COLUMNS = `b.id, b.application_id, c.name AS channel, c.pull_request, b.label, b.version_name, b.version_code,
-  b.uploaded_at, b.commit_sha, b.commit_message, b.pull_request_title, b.signer_sha256, b.file_size, b.file_sha256`;
+  b.uploaded_at, b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.signer_sha256, b.file_size, b.file_sha256`;
 
 export async function checkForUpdate(db: D1Database, installed: InstalledBuild, now: number): Promise<UpdateCheck> {
   const product = await db
@@ -117,7 +119,7 @@ export async function checkForUpdate(db: D1Database, installed: InstalledBuild, 
 
 function toUpdate(build: BuildRow, installed: InstalledBuild, now: number): Update {
   const name = config.products?.[build.application_id]?.displayName ?? build.label ?? build.application_id;
-  const commitLine = build.commit_message?.split(/\r?\n/, 1)[0]?.trim() || null;
+  const { headline, whatsNew } = describeChange(build, name);
   const requiresReinstall =
     build.signer_sha256 !== installed.signer ? "signer" : build.version_code < installed.versionCode ? "version_code" : undefined;
   return {
@@ -127,7 +129,8 @@ function toUpdate(build: BuildRow, installed: InstalledBuild, now: number): Upda
     versionName: build.version_name,
     versionCode: build.version_code,
     uploadedAt: new Date(build.uploaded_at).toISOString(),
-    headline: build.pull_request_title || commitLine || name,
+    headline,
+    ...(whatsNew ? { whatsNew } : {}),
     commitSha: build.commit_sha,
     pullRequest: build.pull_request,
     buildUrl: buildUrl(build.id),

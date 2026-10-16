@@ -16,6 +16,7 @@ async function main(): Promise<void> {
   const server = serverOrigin(core.getInput("server", { required: true }));
   const apkPath = core.getInput("apk", { required: true });
   const iconInput = core.getInput("icon") || undefined;
+  const releaseNotes = core.getInput("notes", { trimWhitespace: true }) || undefined;
   if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL) {
     throw new Error("No OIDC token is available. Give the job `permissions: id-token: write` so Drop can verify which repository and run the Build came from.");
   }
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
     defaultBranch,
     commit: { sha: commit.sha, message: commit.message },
     pullRequestTitle: commit.pullRequestTitle,
+    ...(releaseNotes ? { releaseNotes } : {}),
   };
   const version = request.versionName ? `${request.versionName} (${request.versionCode})` : `(${request.versionCode})`;
   core.info(`Uploading ${request.label ?? request.applicationId} ${version} to ${channel}`);
