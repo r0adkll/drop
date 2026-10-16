@@ -1,0 +1,12 @@
+Binary APK
+Package name=com.example.bitmap id=7f
+  type color id=01 entryCount=1
+    resource 0x7f010000 color/ic_launcher_background
+      () #ff3d5afe
+      (night) #ff000000
+  type mipmap id=02 entryCount=2
+    resource 0x7f020000 mipmap/ic_launcher
+      (anydpi) (file) res/mipmap-anydpi-v26/ic_launcher.xml type=XML
+    resource 0x7f020001 mipmap/ic_launcher_foreground
+      (mdpi) (file) res/mipmap-mdpi-v4/ic_launcher_foreground.webp
+      (xxxhdpi) (file) res/mipmap-xxxhdpi-v4/ic_launcher_foreground.webp

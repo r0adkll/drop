@@ -3,8 +3,10 @@ import { createHash } from "node:crypto";
 import { createReadStream, openAsBlob, readFileSync, statSync } from "node:fs";
 import * as core from "@actions/core";
 import { unzipSync } from "fflate";
+import { adaptiveIconSvg, parseResourceTable, parseXmlTree, UnsupportedIcon } from "./adaptive-icon.ts";
 import { findBuildTools, parseBadging, parseSignerDigest, pickIcon } from "./apk-tools.ts";
 import { readCommitMessage } from "./git.ts";
+import { renderSvg, webpToPng } from "./raster.ts";
 import { chooseChannel, commitDetails, type EventPayload, type RunContext } from "./run-context.ts";
 import { upload, type CreateUploadRequest } from "./upload.ts";
 
@@ -26,7 +28,7 @@ async function main(): Promise<void> {
   const { channel, defaultBranch } = chooseChannel(runContext, core.getInput("channel") || undefined);
   const commit = commitDetails(runContext, gitMessage);
 
-  const icon = readIcon(apkPath, iconInput, badging.icons);
+  const icon = await readIcon(apkPath, iconInput, badging.icons, tools.aapt2);
   const request: CreateUploadRequest = {
     applicationId: badging.packageName,
     versionCode: badging.versionCode,
@@ -98,7 +100,7 @@ function gitMessage(sha: string): string | undefined {
   );
 }
 
-function readIcon(apkPath: string, iconInput: string | undefined, icons: ReturnType<typeof parseBadging>["icons"]) {
+async function readIcon(apkPath: string, iconInput: string | undefined, icons: ReturnType<typeof parseBadging>["icons"], aapt2: string) {
   let icon: { bytes: Uint8Array; contentType: "image/png" | "image/webp" } | undefined;
   if (iconInput) {
     const contentType = /\.png$/i.test(iconInput) ? "image/png" : /\.webp$/i.test(iconInput) ? "image/webp" : undefined;
@@ -106,10 +108,7 @@ function readIcon(apkPath: string, iconInput: string | undefined, icons: ReturnT
     icon = { bytes: readFileSync(iconInput), contentType };
   } else {
     const picked = pickIcon(icons);
-    if (!picked) {
-      core.info("The APK's launcher icon is adaptive-icon XML only; set the icon input to show one.");
-      return undefined;
-    }
+    if (!picked) return drawAdaptiveIcon(apkPath, icons, aapt2);
     const bytes = unzipSync(readFileSync(apkPath), { filter: (file) => file.name === picked.path })[picked.path];
     if (!bytes) {
       core.warning(`The APK has no ${picked.path}; uploading without an icon.`);
@@ -122,6 +121,33 @@ function readIcon(apkPath: string, iconInput: string | undefined, icons: ReturnT
     return undefined;
   }
   return icon;
+}
+
+/** Renders an adaptive launcher icon to PNG; any failure leaves the Build without an icon. */
+async function drawAdaptiveIcon(apkPath: string, icons: ReturnType<typeof parseBadging>["icons"], aapt2: string) {
+  const path = icons.filter((icon) => /\.xml$/i.test(icon.path)).sort((a, b) => b.density - a.density)[0]?.path;
+  if (!path) {
+    core.info("The APK has no launcher icon; set the icon input to show one.");
+    return undefined;
+  }
+  try {
+    const apk = readFileSync(apkPath);
+    const svg = await adaptiveIconSvg(path, {
+      resources: parseResourceTable(run(aapt2, ["dump", "resources", apkPath])),
+      xmlTree: (file) => parseXmlTree(run(aapt2, ["dump", "xmltree", "--file", file, apkPath])),
+      file: (file) => unzipSync(apk, { filter: (entry) => entry.name === file })[file],
+      webpToPng,
+    });
+    const { png } = await renderSvg(svg);
+    return { bytes: png, contentType: "image/png" as const };
+  } catch (error) {
+    if (error instanceof UnsupportedIcon) {
+      core.info(`The APK's adaptive icon uses ${error.message}, which Drop can't draw; set the icon input to show one.`);
+    } else {
+      core.warning(`Drawing the APK's adaptive icon failed, so the Build has no icon: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return undefined;
+  }
 }
 
 function sha256File(path: string): Promise<string> {

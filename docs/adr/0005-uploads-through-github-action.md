@@ -13,4 +13,6 @@ build tools (GitHub's Ubuntu images include them). It is TypeScript rather than 
 in shell because the upload is real code (the OIDC token, presigned `PUT`s, the event payload), and
 TypeScript lets it share the types generated from the server's OpenAPI document and be unit tested.
 Its bundled `dist/` is checked in, because GitHub runs an Action straight from its repository. Apps that ship only adaptive launcher icons have no
-bitmap to extract, so the icon can also be given as an input.
+bitmap to extract, so the Action draws the icon itself from its layers, rendering it with resvg and
+decoding WebP layers with libwebp, both compiled to WebAssembly and checked into `dist/` beside the
+bundle (about 2.6 MB). An icon it can't draw can be given as an input instead.

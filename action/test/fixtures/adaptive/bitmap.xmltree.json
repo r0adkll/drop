@@ -1,0 +1,3 @@
+{
+  "res/mipmap-anydpi-v26/ic_launcher.xml": "N: android=http://schemas.android.com/apk/res/android (line=1)\n  E: adaptive-icon (line=1)\n      E: background (line=1)\n        A: http://schemas.android.com/apk/res/android:drawable(0x01010199)=@0x7f010000\n      E: foreground (line=1)\n        A: http://schemas.android.com/apk/res/android:drawable(0x01010199)=@0x7f020001\n      E: monochrome (line=1)\n        A: http://schemas.android.com/apk/res/android:drawable(0x01010199)=@0x7f020001\n"
+}

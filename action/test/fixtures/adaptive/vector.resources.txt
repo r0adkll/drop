@@ -1,0 +1,13 @@
+Binary APK
+Package name=com.example.vector id=7f
+  type color id=01 entryCount=1
+    resource 0x7f010000 color/square
+      () #ffffffff
+  type drawable id=02 entryCount=2
+    resource 0x7f020000 drawable/ic_launcher_background
+      () (file) res/drawable/ic_launcher_background.xml type=XML
+    resource 0x7f020001 drawable/ic_launcher_foreground
+      () (file) res/drawable/ic_launcher_foreground.xml type=XML
+  type mipmap id=03 entryCount=1
+    resource 0x7f030000 mipmap/ic_launcher
+      (anydpi) (file) res/mipmap-anydpi-v26/ic_launcher.xml type=XML

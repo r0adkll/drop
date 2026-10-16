@@ -3,13 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs --legal-comments=none --banner:js=\"import { createRequire as dropCreateRequire } from 'node:module'; const require = dropCreateRequire(import.meta.url);\"",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/index.mjs --legal-comments=none --banner:js=\"import { createRequire as dropCreateRequire } from 'node:module'; const require = dropCreateRequire(import.meta.url);\" && cp node_modules/@resvg/resvg-wasm/index_bg.wasm dist/resvg.wasm && cp node_modules/@jsquash/webp/codec/dec/webp_dec.wasm dist/webp_dec.wasm",
     "check:dist": "npm run build && git diff --exit-code -- dist && test -z \"$(git status --porcelain -- dist)\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@actions/core": "3.0.1",
+    "@jsquash/webp": "1.5.0",
+    "@resvg/resvg-wasm": "2.6.2",
     "fflate": "0.8.3"
   },
   "devDependencies": {

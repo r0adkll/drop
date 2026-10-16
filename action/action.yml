@@ -18,8 +18,9 @@ inputs:
     required: false
   icon:
     description: >
-      A PNG or WebP icon to show for the Build, for apps whose launcher icon exists only as
-      adaptive-icon XML. Defaults to the largest bitmap icon in the APK.
+      A PNG or WebP icon to show for the Build. Defaults to the largest bitmap launcher icon in the
+      APK, or to one drawn from its adaptive icon; set this when the Action can't draw that, such
+      as an adaptive icon with a gradient.
     required: false
 outputs:
   build-id:

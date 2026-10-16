@@ -144,8 +144,16 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   (`V3.0`, `V3.1`, and `V2 Signer #1:` for several signers). A key rotated with a v3.1 lineage
   prints one signer per SDK range; the Action records the current key, the one whose range ends
   highest.
-- Apps whose launcher icon exists only as adaptive-icon XML (min SDK 26+) have no bitmap to extract;
-  use the `icon` input instead.
+- Apps whose launcher icon exists only as adaptive-icon XML (min SDK 26+) have no bitmap to extract:
+  every density in `aapt2 dump badging` points at the XML, often under a shortened name such as
+  `res/BW.xml` in release builds. The Action draws it instead: `aapt2 dump xmltree --file` gives the
+  `<adaptive-icon>` and its vector drawables with attribute values as `@0x7f…` references,
+  `aapt2 dump resources` resolves those to colours and file paths per configuration, and the layers
+  are drawn over 108dp and cropped to the inner 72dp every launcher mask shows. Colours, bitmaps and
+  vector paths, groups and clip paths are drawn; gradients, colour state lists, theme attributes,
+  framework resources and other drawable types fall back to the `icon` input.
+- resvg-wasm 2.6 ignores WebP images in an SVG, so WebP layers are decoded with `@jsquash/webp` and
+  re-encoded as PNG first. Both modules' `.wasm` files are copied into `action/dist/` by the build.
 - Default Channel: runs on the default branch (push, `workflow_dispatch`, `schedule`) go to `main`,
   `pull_request` runs to `pr/<number>`; any other run must pass `channel`.
 
