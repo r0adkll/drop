@@ -143,6 +143,9 @@ describe("the deploy Action", () => {
   it("runs the server's own deploy script from the same checkout", () => {
     expect(action).toContain("node scripts/deployment.ts deploy");
     expect(existsSync(new URL("../../scripts/deployment.ts", import.meta.url))).toBe(true);
-    expect(action).toContain("node-version-file: ${{ github.action_path }}/../server/.nvmrc");
+    // setup-node's node-version-file is joined to the workspace, so the Action reads .nvmrc itself.
+    expect(action).toContain('cat "$GITHUB_ACTION_PATH/../server/.nvmrc"');
+    expect(action).toContain("node-version: ${{ steps.node.outputs.version }}");
+    expect(action).not.toContain("node-version-file");
   });
 });
