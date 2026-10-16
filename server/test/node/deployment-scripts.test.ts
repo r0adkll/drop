@@ -51,41 +51,63 @@ describe("./drop", () => {
     expect(run(join(dir, "drop"), ["cache-dir"], { env: { XDG_CACHE_HOME: "/cache" } }).stdout.trim()).toBe("/cache/drop/r0adkll/drop/release_1.x");
   });
 
-  it("fails clearly without a workflow or a pin, and on unknown commands", () => {
+  it("fails clearly without a workflow or a pin", () => {
     const unpinned = run(join(deploymentWith(undefined), "drop"), ["version"]);
     expect(unpinned.status).toBe(1);
     expect(unpinned.stderr).toContain("has no 'uses: <owner>/<repo>/deploy@<ref>' step");
-
-    const dir = deploymentWith("      - uses: r0adkll/drop/deploy@main");
-    const unknown = run(join(dir, "drop"), ["launch"]);
-    expect(unknown.status).toBe(2);
-    expect(unknown.stderr).toContain("Usage: ./drop <command>");
-    expect(run(join(dir, "drop"), ["help"]).stdout).toContain("setup [options]");
-    expect(run(join(dir, "drop"), ["help"]).stdout).toContain("delete-build <id>");
   });
 
-  it("runs setup from a checkout of the pinned ref, installing dependencies once", () => {
-    // Upstream Drop: just enough of server/ for the script to install and run.
+  /** Upstream Drop: the real cli.ts and script template, a setup.ts stub, and a stubbed npm. */
+  function upstreamDrop() {
     const upstream = temp("drop-upstream-");
     mkdirSync(join(upstream, "server/scripts"), { recursive: true });
+    mkdirSync(join(upstream, "deployment/template"), { recursive: true });
     writeFileSync(join(upstream, "server/.nvmrc"), "20\n");
     writeFileSync(join(upstream, "server/package-lock.json"), "{}\n");
+    cpSync(new URL("../../scripts/cli.ts", import.meta.url).pathname, join(upstream, "server/scripts/cli.ts"));
+    cpSync(join(TEMPLATE, "drop"), join(upstream, "deployment/template/drop"));
     writeFileSync(join(upstream, "server/scripts/setup.ts"), 'console.log(`setup ${process.argv.slice(2).join(" ")} in ${process.env.DROP_DEPLOYMENT_DIR}`);\n');
     for (const args of [["init", "-q"], ["add", "."], ["commit", "-q", "-m", "Drop"], ["tag", "v9.9.9"]]) expect(run("git", args, { cwd: upstream }).status).toBe(0);
 
-    // npm is a stub that records each install.
     const bin = temp("drop-bin-");
     const npmLog = join(bin, "npm.log");
     writeFileSync(join(bin, "npm"), `#!/bin/sh\necho "$@" >> "${npmLog}"\nmkdir -p node_modules\n`);
     chmodSync(join(bin, "npm"), 0o755);
-
-    const dir = deploymentWith("      - uses: example/drop/deploy@v9.9.9");
     const env = { DROP_GIT_URL: upstream, XDG_CACHE_HOME: temp("drop-cache-"), PATH: `${bin}:${process.env.PATH}` };
+    return { upstream, npmLog, env };
+  }
+
+  it("runs setup from a checkout of the pinned ref, installing dependencies once", () => {
+    const { npmLog, env } = upstreamDrop();
+    const dir = deploymentWith("      - uses: example/drop/deploy@v9.9.9");
     const first = run(join(dir, "drop"), ["setup", "--skip-app"], { env });
     expect(first.stderr).toBe("");
     expect(first.stdout.trim()).toBe(`setup --skip-app in ${dir}`);
     expect(run(join(dir, "drop"), ["setup"], { env }).status).toBe(0);
     expect(readFileSync(npmLog, "utf8").trim().split("\n")).toEqual(["ci --no-audit --no-fund --loglevel=error"]);
+  });
+
+  it("takes its commands and help from the pinned release", () => {
+    const { env } = upstreamDrop();
+    const dir = deploymentWith("      - uses: example/drop/deploy@v9.9.9");
+    const help = run(join(dir, "drop"), ["help"], { env });
+    expect(help.stdout).toContain("delete-build <id>");
+    const unknown = run(join(dir, "drop"), ["launch"], { env });
+    expect(unknown.status).toBe(2);
+    expect(unknown.stderr).toContain("Usage: ./drop <command>");
+  });
+
+  it("warns when it differs from the pinned release's script, and replaces itself on request", () => {
+    const { env } = upstreamDrop();
+    const dir = deploymentWith("      - uses: example/drop/deploy@v9.9.9");
+    writeFileSync(join(dir, "drop"), `${readFileSync(join(dir, "drop"), "utf8")}\n# an older copy\n`);
+    expect(run(join(dir, "drop"), ["help"], { env }).stderr).toContain("run ./drop self-update to replace it");
+
+    const updated = run(join(dir, "drop"), ["self-update"], { env });
+    expect(updated.stdout).toContain("Updated ./drop");
+    expect(readFileSync(join(dir, "drop"), "utf8")).toBe(readFileSync(join(TEMPLATE, "drop"), "utf8"));
+    expect(statSync(join(dir, "drop")).mode & 0o111).toBeTruthy();
+    expect(run(join(dir, "drop"), ["help"], { env }).stderr).toBe("");
   });
 });
 

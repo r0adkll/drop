@@ -327,7 +327,10 @@ together. A Deployment runs the release its deploy workflow pins
   `wrangler d1 migrations apply --remote`, then `wrangler deploy`. `./drop` reads the same pin,
   keeps a shallow checkout of that ref under `${XDG_CACHE_HOME:-~/.cache}/drop/<owner>/<repo>/<ref>`
   (fetched again on every run, so a branch pin follows its branch), runs `npm ci` once per
-  lockfile, and runs `setup`, `deploy` or `dev` there. Upgrading Drop is changing the ref.
+  lockfile, and hands every command to that checkout's `server/scripts/cli.ts`, so commands added to
+  Drop arrive with the pin. When the script differs from the checkout's
+  `deployment/template/drop`, it says so and `./drop self-update` replaces it. Upgrading Drop is
+  changing the ref.
 - **Where the files come from.** Every server script reads the Deployment from
   `DROP_DEPLOYMENT_DIR`, which `./drop` and the deploy Action set; without it, the repository root
   and its placeholders, which developing Drop uses. The Worker bundles `drop.config.json` and the

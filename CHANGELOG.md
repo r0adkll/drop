@@ -10,8 +10,11 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 - Deployment: `./drop delete-build <id>` removes a Build at once, such as one that leaked a secret.
   Its APK is deleted, its Build page says the operator removed it, and a re-run of its workflow
-  can't upload it again. Deployment repositories made before this need the new `drop` script from
-  `deployment/template/drop`.
+  can't upload it again.
+- Deployment: `./drop` takes its commands from the pinned Drop release, so new commands arrive when
+  the pin moves, and `./drop self-update` replaces the script when it is out of date. Deployment
+  repositories made before this copy it once:
+  `cp "$(./drop cache-dir)/deployment/template/drop" drop` (after any `./drop` run that synced).
 
 ### Changed
 

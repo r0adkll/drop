@@ -4,28 +4,12 @@
 # cached checkout of the Drop release that .github/workflows/deploy.yml pins, so setup, CI deploys
 # and this script always run the same version. Upgrade by changing the ref in that workflow.
 #
+# The script only finds and updates that checkout, then hands every command to its
+# server/scripts/cli.ts, so new commands arrive with the pin.
+#
 # Usage: ./drop <command> [options]; ./drop help lists the commands.
 
 set -euo pipefail
-
-usage() {
-  cat <<'EOF'
-Usage: ./drop <command> [options]
-
-Commands:
-  setup [options]    Set up or repair this deployment: Cloudflare account, D1 database, R2 bucket and
-                     token, Owner IDs, GitHub App, first deploy and CI credentials. Safe to re-run.
-                     Options: --refresh, --skip-app, --recreate-app, --app-name <name>,
-                     --worker-name <name>, --push-secrets
-  deploy [options]   Deploy from this machine. CI deploys every push to main.
-                     Options: --secrets (upload .dev.vars too), --dry-run
-  dev [args]         Run the Worker locally with wrangler dev; extra arguments go to wrangler.
-  delete-build <id>  Remove a Build now, such as one that leaked a secret: its page says it was
-                     removed and its APK is deleted. Options: --yes (skip the confirmation)
-  version            Print the Drop repository and ref this deployment pins.
-  help               Show this help.
-EOF
-}
 
 die() {
   printf 'drop: %s\n' "$1" >&2
@@ -93,18 +77,6 @@ command="${1:-help}"
 [ $# -gt 0 ] && shift
 
 case "$command" in
-  setup | deploy | dev | delete-build)
-    read_pin
-    sync_checkout
-    export DROP_DEPLOYMENT_DIR="$root"
-    cd "$checkout_dir/server"
-    case "$command" in
-      setup) exec node scripts/setup.ts "$@" ;;
-      deploy) exec node scripts/deployment.ts deploy "$@" ;;
-      dev) exec node scripts/deployment.ts dev "$@" ;;
-      delete-build) exec node scripts/deployment.ts delete-build "$@" ;;
-    esac
-    ;;
   version)
     read_pin
     printf '%s %s\n' "$repository" "$ref"
@@ -113,11 +85,14 @@ case "$command" in
     read_pin
     cache_dir
     ;;
-  help | -h | --help)
-    usage
-    ;;
   *)
-    usage >&2
-    exit 2
+    read_pin
+    sync_checkout
+    if [ "$command" != self-update ] && ! cmp -s "$checkout_dir/deployment/template/drop" "${BASH_SOURCE[0]}"; then
+      printf 'drop: this script differs from the one in %s@%s; run ./drop self-update to replace it.\n' "$repository" "$ref" >&2
+    fi
+    export DROP_DEPLOYMENT_DIR="$root"
+    cd "$checkout_dir/server"
+    exec node scripts/cli.ts "$command" "$@"
     ;;
 esac
