@@ -6,6 +6,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
 ### Added
 
 - Deployment: `./drop delete-build <id>` removes a Build at once, such as one that leaked a secret.
