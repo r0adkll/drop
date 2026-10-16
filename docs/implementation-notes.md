@@ -129,9 +129,10 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   Action reaches the server at `$GITHUB_ACTION_PATH/../server`. This is how the runner behaves, but
   GitHub's metadata docs don't say so (*unverified* against the docs; CI runs the Action as
   `uses: ./deploy`, which exercises the same layout).
-- `actions/setup-node`'s `node-version-file` takes an absolute path, so the Action reads
-  `${{ github.action_path }}/../server/.nvmrc` (*unverified* until CI runs it). It skips setup-node's
-  npm cache, whose dependency path would sit outside the workspace.
+- `actions/setup-node`'s `node-version-file` is joined to the workspace even when absolute, so from
+  another repository it looks for `<workspace>/home/runner/work/_actions/…/.nvmrc` and fails. The
+  Action reads `$GITHUB_ACTION_PATH/../server/.nvmrc` in a step and passes `node-version` instead.
+  It skips setup-node's npm cache, whose dependency path would sit outside the workspace.
 
 ## The upload Action
 

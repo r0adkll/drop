@@ -32,9 +32,16 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    # setup-node resolves node-version-file against the workspace, even an absolute path, so the
+    # server's .nvmrc is read here instead.
+    - name: Read Drop's Node.js version
+      id: node
+      shell: bash
+      run: echo "version=$(cat "$GITHUB_ACTION_PATH/../server/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/setup-node@v5
       with:
-        node-version-file: ${{ github.action_path }}/../server/.nvmrc
+        node-version: ${{ steps.node.outputs.version }}
 
     - name: Install Drop's server
       shell: bash
