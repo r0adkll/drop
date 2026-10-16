@@ -42,7 +42,7 @@ describe("the index", () => {
     expect(headers.get("x-robots-tag")).toBe("noindex");
     expect(headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(html).toContain("<h1>Apps</h1>");
-    expect(html).toMatch(/<p class="brand"><span class="logo" aria-hidden="true"><svg [^>]*>.*<\/svg><\/span>Drop<\/p>/);
+    expect(html).toMatch(/<div class="brand"><span class="logo" aria-hidden="true"><svg [^>]*>.*<\/svg><\/span><div class="hero"><h1>Apps<\/h1>/);
     expect(html).toContain(`href="/p/${t.applicationId}"`);
     expect(html).toContain("<p class=\"label\">Newest on main</p>");
     expect(html).toContain("Offline map tiles");

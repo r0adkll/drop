@@ -21,10 +21,10 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function renderIndex(products: ProductSummary[], ctx: RenderContext): RenderedPage {
   const cards = products.map((product) => indexCard(product, ctx)).join("");
   const body =
-    `<header class="head"><div class="wrap"><div class="hero">` +
-    `<p class="brand"><span class="logo" aria-hidden="true">${DROP_ICON_SVG}</span>Drop</p><h1>Apps</h1>` +
+    `<header class="head"><div class="wrap"><div class="brand"><span class="logo" aria-hidden="true">${DROP_ICON_SVG}</span><div class="hero">` +
+    `<h1>Apps</h1>` +
     `<p class="lede">Test builds from CI. Scan a code with your Android phone, or open an app to see its channels.</p>` +
-    `</div></div></header>` +
+    `</div></div></div></header>` +
     `<main class="wrap site">${products.length > 0 ? `<div class="cards">${cards}</div>` : `<p class="muted">No apps have Builds here yet.</p>`}</main>` +
     footer(ctx);
   return { status: 200, html: document({ title: `Apps · ${new URL(ctx.baseUrl).host}`, description: null, ogTitle: null, url: null, image: null }, body) };
