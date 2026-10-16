@@ -324,8 +324,8 @@ export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" |
     await env.BUILDS.delete(upload.file_key);
     throw new ApiError(409, "file_size_mismatch", `The uploaded APK is ${apk.size} bytes, not ${upload.file_size}.`);
   }
-  // Present only if storage verified a checksum on upload; otherwise the size check stands alone and
-  // the SDK's SHA-256 check before install is the backstop (docs/implementation-notes.md#cloudflare).
+  // R2 refuses a body that doesn't match the signed checksum, so this is a second look; where the
+  // binding reports no checksum the size check stands alone (docs/implementation-notes.md#cloudflare).
   const stored = apk.checksums.sha256;
   if (stored && bytesToHex(stored) !== upload.file_sha256) {
     await env.BUILDS.delete(upload.file_key);

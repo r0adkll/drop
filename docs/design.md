@@ -90,13 +90,12 @@ the claims check. The server accepts an upload only when its token:
   token.
 
 The presigned upload URL the server returns is valid for one object key, for a few minutes, and
-carries the APK's SHA-256 as a signed `x-amz-checksum-sha256` header. The upload is accepted only
-once the server has confirmed the object's size, and its SHA-256 where R2 reports one (see
-[implementation notes](implementation-notes.md#cloudflare)); the SDK checks the SHA-256 again before
-installing. Pull
-requests from forks get no OIDC token, so they cannot upload. The Cloudflare account and the
-Worker secrets are the deployment's other trust boundary: whoever can deploy the Worker can change
-these rules.
+carries the APK's SHA-256 as a signed `x-amz-checksum-sha256` header, which R2 enforces. The upload
+is accepted only once the server has confirmed the object's size, and its SHA-256 where R2 reports
+one (see [implementation notes](implementation-notes.md#cloudflare)); the SDK checks the SHA-256
+again before installing. Pull requests from forks get no OIDC token, so they cannot upload. The
+Cloudflare account and the Worker secrets are the deployment's other trust boundary: whoever can
+deploy the Worker can change these rules.
 
 ## Build pages
 

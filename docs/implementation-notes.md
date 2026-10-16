@@ -12,11 +12,11 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
 - Free-plan Workers get about 10 ms of CPU per request. Keep heavy work, such as parsing APKs, out of
   the Worker; that is why the Action reads APK metadata.
 - Presigned `PUT`s sign `x-amz-checksum-sha256` (base64 of the digest), so the uploader must send
-  it unchanged. Whether R2's S3 API rejects a body that doesn't match it, and whether the Worker
-  binding's `head()` then reports `checksums.sha256`, is *unverified*; R2's docs don't say. Run
-  `npm run smoke:r2-checksum` in `server/` against a real bucket to find out. If R2 enforces it, the
-  server's completion check confirms the checksum; if not, the server checks size only (it cannot
-  hash an APK inside the CPU limit) and the SDK's SHA-256 check before install is the backstop.
+  it unchanged. R2 enforces it: a body that doesn't match is refused with HTTP 400, and the stored
+  object keeps the checksum (checked 2026-10-16 with `npm run smoke:r2-checksum` in `server/`, which
+  re-checks it against any bucket). The completion check still compares `checksums.sha256` where the
+  Worker binding's `head()` reports one, and the size alone otherwise; the Worker can't hash an APK
+  inside its CPU limit. The SDK's SHA-256 check before install stays as the last line.
 - R2 has no egress fees, which is the reason for the whole platform choice
   ([ADR 0001](adr/0001-cloudflare-workers-r2-d1.md)). Serve downloads from R2 with
   `Content-Type: application/vnd.android.package-archive` and a `Content-Disposition` filename.
