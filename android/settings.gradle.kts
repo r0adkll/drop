@@ -19,4 +19,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "drop-android"
 
-include(":drop-core")
+include(":drop-core", ":drop-android")
