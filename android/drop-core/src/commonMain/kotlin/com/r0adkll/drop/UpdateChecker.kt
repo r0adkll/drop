@@ -86,4 +86,5 @@ private fun ApiUpdate.toUpdate() = Update(
     ApiUpdate.RequiresReinstall.signer -> ReinstallReason.Signer
     ApiUpdate.RequiresReinstall.unknown_default_open_api -> ReinstallReason.Unknown
   },
+  whatsNew = whatsNew,
 )

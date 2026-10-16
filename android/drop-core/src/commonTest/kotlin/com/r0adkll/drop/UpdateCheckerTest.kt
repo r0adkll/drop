@@ -49,6 +49,15 @@ class UpdateCheckerTest {
     assertEquals("Rt4wN8cZ", update.buildId)
     assertEquals(18_497_955, update.fileSize)
     assertNull(update.requiresReinstall)
+    assertNull(update.whatsNew)
+  }
+
+  @Test
+  fun readsWhatsNew() = runTest {
+    val json = updateJson().replace("\"headline\":\"Offline map tiles\"", "\"headline\":\"Beta 2.9\",\"whatsNew\":\"• Filters\\n• Maps\"")
+    val update = assertIs<UpdateCheckResult.Available>(checker(body = """{"status":"update","update":$json}""").check(installed)).update
+    assertEquals("Beta 2.9", update.headline)
+    assertEquals("• Filters\n• Maps", update.whatsNew)
   }
 
   @Test

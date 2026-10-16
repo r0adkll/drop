@@ -130,6 +130,7 @@ private fun ColumnScope.Offer(update: Update, onUpdate: () -> Unit, onDismiss: (
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Text(stringResource(R.string.drop_what_changed).uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(update.headline, style = MaterialTheme.typography.bodyLarge)
+    update.whatsNew?.let { WhatsNew(it) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       ChannelChip(update.channel)
       Text(

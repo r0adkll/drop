@@ -26,7 +26,10 @@ public data class Update(
   val versionName: String?,
   val versionCode: Long,
   val uploadedAt: Instant,
-  /** What changed: the pull request title, else the commit message's first line, else the app's name. */
+  /**
+   * What changed: the first line of the Build's release notes, else the pull request title, else the
+   * commit message's first line, else the app's name.
+   */
   val headline: String,
   val commitSha: String,
   /** The pull request number, for a Build on a Pull request channel. */
@@ -40,6 +43,8 @@ public data class Update(
   val downloadUrlExpiresAt: Instant,
   /** Why it can't install over the installed Build, which means uninstalling first; null when it can. */
   val requiresReinstall: ReinstallReason?,
+  /** The rest of the Build's release notes after [headline], as plain text; null when there are none. */
+  val whatsNew: String? = null,
 )
 
 @Serializable
