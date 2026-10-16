@@ -184,6 +184,25 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   (`setRequireUserAction`, Android 12+) need the updating app to be the installer of record, and
   apps installed from a browser are not.
 
+## SDK
+
+- The Kotlin client comes from OpenAPI Generator's `kotlin` generator with
+  `library=multiplatform` (pinned in `android/gradle/libs.versions.toml`), generated into
+  `drop-core/build/` on every build and filtered to the operations apps call (`FILTER`
+  normalizer), since its webhook operation doesn't compile. `int64` fields become `Long`; GitHub
+  run IDs need it.
+- `enumUnknownDefaultCase` adds an `unknown_default_open_api` case to each enum but no serializer
+  that falls back to it, so an unknown value still fails to decode. `drop-core` decodes with
+  `coerceInputValues`, which turns an unknown optional value (`requiresReinstall`) into null, and
+  reports an unknown required one (`status`) as a failed check. Ktor wraps decode failures in
+  `ContentConvertException`, not `SerializationException`.
+- With AGP 9's built-in Kotlin, a library's classes compile to
+  `build/intermediates/built_in_kotlinc/<variant>/compile<Variant>Kotlin/classes`, which
+  `android/scripts/check-noop-api.sh` reads to compare `drop-noop`'s `Drop` with `drop-android`'s.
+- Robolectric 4.17 can't start on API 37, so unit tests pin `sdk=35` in `robolectric.properties`.
+- The sample signs every build with its committed `sample.keystore`, so CI builds can update each
+  other; real apps must keep their key secret (ADR 0006).
+
 ## Gradle plugin
 
 - Stamp values come from the CI environment: `GITHUB_RUN_ID`; `GITHUB_EVENT_NAME`; the pull request
