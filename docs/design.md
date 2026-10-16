@@ -260,3 +260,8 @@ workflow pins ([ADR 0016](adr/0016-config-only-deployment-repositories.md)).
 - Deleting a Build deletes its APK but keeps its icon, which is small, so its expired Build page
   and the pull request comments that showed it still have an image.
 - Each rule can be overridden per Product in the deployment config.
+- A job runs hourly. It marks expired Builds deleted in D1, drops uploads abandoned for a day, then
+  deletes every stored file that no Build or upload in D1 refers to. D1 is the record and storage
+  follows it, so files that other deletions missed (a replaced attempt's, say) are collected too.
+  It then edits each closed pull request's comment down to the deleted note once all its Builds are
+  gone, editing only: a comment deleted by hand isn't posted again.

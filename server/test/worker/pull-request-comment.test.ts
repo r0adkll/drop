@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
-import { COMMENT_MARKER, renderPullRequestComment, updatePullRequestComment, type CommentBuild } from "../../src/github/pull-request-comment";
+import { COMMENT_MARKER, renderDeletedComment, renderPullRequestComment, updatePullRequestComment, type CommentBuild } from "../../src/github/pull-request-comment";
 import { createFakeGitHub } from "./fake-github";
 import { createTestApp, NOW, seedBuild, uniqueApplicationId, uploadRequest } from "./support";
 
@@ -48,6 +48,12 @@ describe("renderPullRequestComment", () => {
     expect(body.indexOf("<b>Admin</b> (212)")).toBeLessThan(body.indexOf("<b>Trailhead</b>"));
     expect(body).not.toContain("Rt4wN8cZ/icon");
     expect(body).toContain("<sub>Updated at 14:07 UTC by <a href=\"https://github.com/your-org/trailhead/actions/runs/11384729999\">Android #1877</a>");
+  });
+
+  it("says what Testers are offered once the Builds are deleted, with or without a default Channel", () => {
+    const at = Date.UTC(2026, 9, 16, 16, 30);
+    expect(renderDeletedComment({ deletedAt: at, defaultChannel: "main" })).toContain("were deleted on Oct 16. Testers who installed one are offered the newest Build on `main`.");
+    expect(renderDeletedComment({ deletedAt: at, defaultChannel: null })).toContain("offered the newest Build on the default Channel.");
   });
 
   it("escapes everything an upload controls", () => {

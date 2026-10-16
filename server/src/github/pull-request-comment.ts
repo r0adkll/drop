@@ -31,6 +31,13 @@ export interface CommentClosed {
   defaultChannel: string | null;
 }
 
+export interface CommentDeleted {
+  /** When retention deleted the last of its Builds. */
+  deletedAt: number;
+  /** The default Channel Testers are offered, if the Products have one. */
+  defaultChannel: string | null;
+}
+
 export interface CommentContent {
   /** The deployment's URL, such as https://drop.example.com. */
   baseUrl: string;
@@ -58,6 +65,12 @@ export function renderPullRequestComment({ baseUrl, repository, builds, closed }
     parts.push(`<sub>Updated at ${formatTime(latest.uploadedAt)} UTC by ${runLink(repository, latest)} · <a href="${DROP_REPOSITORY}">Drop</a></sub>`);
   }
   return `${parts.join("\n\n")}\n`;
+}
+
+/** What the comment says once retention has deleted the closed pull request's Builds: the note alone. */
+export function renderDeletedComment({ deletedAt, defaultChannel }: CommentDeleted): string {
+  const offered = defaultChannel ? `the newest Build on \`${defaultChannel}\`` : "the newest Build on the default Channel";
+  return `${COMMENT_MARKER}\n\n> [!NOTE]\n> This pull request’s Builds were deleted on ${formatDay(deletedAt)}. Testers who installed one are offered ${offered}.\n`;
 }
 
 function block(baseUrl: string, repository: string, build: CommentBuild): string {
@@ -103,9 +116,13 @@ function formatTime(at: number): string {
   return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-function formatDate(at: number): string {
+function formatDay(at: number): string {
   const date = new Date(at);
-  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()} at ${formatTime(at)}`;
+  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`;
+}
+
+function formatDate(at: number): string {
+  return `${formatDay(at)} at ${formatTime(at)}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -243,4 +260,62 @@ async function writeComment(db: D1Database, github: GitHubApp, target: CommentTa
   }
   if (keep.id !== created.id) await edit(keep.id);
   await remember(keep.id);
+}
+
+// ---------------------------------------------------------------------------------------------
+// After retention
+
+/**
+ * Edits each closed pull request's comment down to the deleted note once retention has deleted all
+ * its Builds. The comment is only ever edited here, never posted: one deleted by hand stays deleted.
+ * Returns how many comments were settled.
+ */
+export async function noteDeletedBuilds(db: D1Database, github: GitHubApp, now: number): Promise<number> {
+  const { results } = await db
+    .prepare(
+      `SELECT prc.repository_id, prc.pull_request, prc.comment_id, MAX(b.deleted_at) AS deleted_at,
+         MAX(p.repository) AS repository, json_group_array(DISTINCT p.application_id) AS application_ids
+       FROM pull_request_comments prc
+       JOIN products p ON p.repository_id = prc.repository_id
+       JOIN channels c ON c.application_id = p.application_id AND c.pull_request = prc.pull_request
+       JOIN builds b ON b.channel_id = c.id
+       WHERE prc.closed_at IS NOT NULL AND prc.deleted_note_at IS NULL
+       GROUP BY prc.repository_id, prc.pull_request
+       HAVING COUNT(*) = COUNT(b.deleted_at)`,
+    )
+    .all<{ repository_id: number; pull_request: number; comment_id: number | null; deleted_at: number; repository: string; application_ids: string }>();
+
+  let settled = 0;
+  for (const row of results) {
+    const done = () =>
+      db
+        .prepare("UPDATE pull_request_comments SET deleted_note_at = ? WHERE repository_id = ? AND pull_request = ?")
+        .bind(now, row.repository_id, row.pull_request)
+        .run();
+    if (row.comment_id === null) {
+      await done();
+      settled += 1;
+      continue;
+    }
+    const applicationIds = JSON.parse(row.application_ids) as string[];
+    const defaultChannel = await db
+      .prepare(`SELECT name FROM channels WHERE is_default = 1 AND application_id IN (${applicationIds.map(() => "?").join(", ")}) ORDER BY name LIMIT 1`)
+      .bind(...applicationIds)
+      .first<{ name: string }>();
+    const body = renderDeletedComment({ deletedAt: row.deleted_at, defaultChannel: defaultChannel?.name ?? null });
+    const repository = escapePath(row.repository);
+    try {
+      const installation = await github.request<{ id: number }>(`/repos/${repository}/installation`);
+      await github.request(`/repos/${repository}/issues/comments/${row.comment_id}`, { method: "PATCH", body: { body }, installation: installation.id });
+    } catch (error) {
+      // Gone: the App was uninstalled from the repository, or the comment was deleted by hand.
+      if (!(error instanceof GitHubError && error.status === 404)) {
+        console.error(`Noting deleted Builds on ${row.repository}#${row.pull_request} failed:`, error);
+        continue;
+      }
+    }
+    await done();
+    settled += 1;
+  }
+  return settled;
 }

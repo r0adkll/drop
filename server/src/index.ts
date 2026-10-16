@@ -6,13 +6,14 @@ import type { components } from "./generated/openapi";
 import { handlePullRequestEvent, handleWebhook, verifyWebhookSignature, WebhookPayloadError } from "./github-webhook";
 import { createGitHubApp, NO_APP, type GitHubApp } from "./github/client";
 import { claimResync, resyncInstallations } from "./github/installations";
-import { updatePullRequestComment, type CommentTarget } from "./github/pull-request-comment";
+import { noteDeletedBuilds, updatePullRequestComment, type CommentTarget } from "./github/pull-request-comment";
 import { createTokenVerifier, type GitHubClaims, type TokenVerifier } from "./oidc";
 import { r2Presigner, type Presigner } from "./presign";
 import { loadBuildPage } from "./build-page/model";
 import { PAGE_SCRIPT, renderBuildPage } from "./build-page/render";
 import { serveDownload } from "./download";
 import { qrSvg } from "./qr";
+import { applyRetention } from "./retention-job";
 import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
 
 type Health = components["schemas"]["Health"];
@@ -246,18 +247,40 @@ async function resyncIfDue(deps: Dependencies, env: Env): Promise<boolean> {
 
 /** The Cron Trigger's work. Retention (docs/design.md#retention) is not implemented yet. */
 export async function runScheduled(deps: Dependencies, env: Env): Promise<void> {
+  const failures: unknown[] = [];
+  const attempt = async (step: () => Promise<void>) => {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  };
+
+  await attempt(async () => {
+    const result = await applyRetention(env.DB, env.BUILDS, deps.now());
+    if (result.expiredBuilds.length > 0 || result.abandonedUploads > 0 || result.deletedObjects > 0) {
+      console.log(
+        `Retention: ${result.expiredBuilds.length} Builds expired, ${result.abandonedUploads} abandoned uploads dropped, ${result.deletedObjects} files deleted.`,
+      );
+    }
+  });
+
   const github = deps.github(env);
   if (github) {
-    // Hourly, whatever the rate limit says; recording it keeps request-triggered resyncs spaced.
-    await claimResync(env.DB, deps.now());
-    await resyncInstallations(env.DB, github, deps.allowList.owners, deps.now());
+    await attempt(async () => {
+      // Hourly, whatever the rate limit says; recording it keeps request-triggered resyncs spaced.
+      await claimResync(env.DB, deps.now());
+      await resyncInstallations(env.DB, github, deps.allowList.owners, deps.now());
+    });
+    await attempt(async () => {
+      await noteDeletedBuilds(env.DB, github, deps.now());
+    });
   } else {
-    throw new Error(`Can't resync GitHub App installations: ${gitHubAppProblem(env)}`);
+    failures.push(new Error(`Can't resync GitHub App installations or edit pull request comments: ${gitHubAppProblem(env)}`));
   }
-  // TODO: retention: once a closed pull request's Builds are deleted, edit its comment down to a note
-  // that they were deleted (docs/design.md#pull-request-comments).
-  // TODO: retention: delete expired Builds' files, abandoned `uploads` rows (older than the upload URL
-  // lifetime) and their R2 objects, and Pull request channels 24 hours after they end.
+
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, failures.map((failure) => (failure instanceof Error ? failure.message : String(failure))).join("; "));
 }
 
 // One client per App and key for the isolate's lifetime, so its JWT and installation tokens are reused.
