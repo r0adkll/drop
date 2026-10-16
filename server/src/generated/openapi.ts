@@ -254,7 +254,10 @@ export interface components {
             pullRequest: number | null;
             /** Format: uri */
             buildUrl: string;
-            /** @description The APK's size in bytes. */
+            /**
+             * Format: int64
+             * @description The APK's size in bytes.
+             */
             fileSize: number;
             /** @description The APK's SHA-256, to verify before installing. */
             fileSha256: components["schemas"]["Sha256"];
@@ -294,7 +297,10 @@ export interface components {
             pullRequestTitle?: string;
         };
         FileDescriptor: {
-            /** @description Size in bytes. */
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
             size: number;
             sha256: components["schemas"]["Sha256"];
         };

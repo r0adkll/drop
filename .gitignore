@@ -6,3 +6,10 @@ server/wrangler.deployment.json
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/**/build/
+android/local.properties
+android/.idea/

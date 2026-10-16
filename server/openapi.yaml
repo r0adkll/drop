@@ -101,6 +101,7 @@ paths:
           description: The GitHub Actions run ID from the installed Build's Stamp.
           schema:
             type: integer
+            format: int64
             minimum: 1
         - name: signer
           in: query
@@ -438,6 +439,7 @@ components:
         fileSize:
           description: The APK's size in bytes.
           type: integer
+          format: int64
         fileSha256:
           description: The APK's SHA-256, to verify before installing.
           allOf:
@@ -520,6 +522,7 @@ components:
         size:
           description: Size in bytes.
           type: integer
+          format: int64
           minimum: 1
           maximum: 5000000000
         sha256:
