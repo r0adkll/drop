@@ -6,6 +6,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-16
+
 The first release: milestone 1, Public products.
 
 ### Added
