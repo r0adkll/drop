@@ -1,12 +1,12 @@
 [versions]
-# The SDK and Gradle plugin release; the plugin adds drop-android or drop-noop at this version.
-drop = "0.1.0-SNAPSHOT"
 agp = "9.4.1"
 kotlin = "2.4.21"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 ktor = "3.6.0"
 openapi-generator = "7.25.0"
+maven-publish = "0.37.0"
+plugin-publish = "2.2.1"
 androidx-activity = "1.13.0"
 androidx-compose = "1.12.1"
 material3 = "1.4.0"
@@ -42,3 +42,5 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
+plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "plugin-publish" }

@@ -30,5 +30,7 @@ themselves. Scope is in [`README.md`](README.md); milestone 1 serves Public prod
 - **Open source.** The repository is public and anyone deploys their own copy. Everything specific
   to a deployment comes from `drop.config.json` or Worker secrets; examples use placeholders such as
   `drop.example.com`, `your-org` and `you/app`.
+- **Changelog.** A change people using Drop would notice adds a line under Unreleased in
+  [`CHANGELOG.md`](CHANGELOG.md); it becomes the release notes (`scripts/release`).
 - **One contract.** The OpenAPI document in `server/` defines the API; the Kotlin client is
   generated from it.

@@ -5,6 +5,7 @@
 plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.maven.publish)
 }
 
 android {
@@ -27,4 +28,16 @@ dependencies {
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.test.core)
   testImplementation(libs.kotlinx.coroutines.test)
+}
+
+mavenPublishing {
+  configure(com.vanniktech.maven.publish.AndroidSingleVariantLibrary(variant = "release", sourcesJar = true, publishJavadocJar = true))
+  publishToMavenCentral(automaticRelease = true)
+  // Snapshots go unsigned; releases are signed with the key the release workflow provides.
+  if (providers.gradleProperty("signingInMemoryKey").isPresent) signAllPublications()
+  pom {
+    name = "Drop for Android"
+    description = "The Drop SDK: checks a Drop deployment for Updates, downloads and installs them."
+    inceptionYear = "2026"
+  }
 }

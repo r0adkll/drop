@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#
+# Releases Drop: turns CHANGELOG.md's Unreleased section into <version>, moves the SDK's snapshot
+# version on, commits, tags v<version> and pushes. The tag starts .github/workflows/release.yml,
+# which publishes the SDK and Gradle plugin and creates the GitHub Release (docs/design.md#releases).
+#
+# Usage: scripts/release <version>     e.g. scripts/release 0.1.0
+
+set -euo pipefail
+
+die() {
+  printf 'release: %s\n' "$1" >&2
+  exit 1
+}
+
+version="${1:-}"
+[[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || die "give a version such as 0.1.0."
+next="${BASH_REMATCH[1]}.$((BASH_REMATCH[2] + 1)).0-SNAPSHOT"
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+[ "$(git branch --show-current)" = main ] || die "release from main."
+[ -z "$(git status --porcelain)" ] || die "the working tree has uncommitted changes."
+git fetch --quiet origin main --tags
+[ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || die "main isn't in step with origin/main."
+git rev-parse --quiet --verify "refs/tags/v$version" >/dev/null && die "v$version already exists."
+
+# The Unreleased section must say something, since it becomes the release notes.
+notes="$(awk '/^## \[Unreleased\]/{found=1; next} /^## \[/{if (found) exit} found' CHANGELOG.md | sed '/^[[:space:]]*$/d')"
+[ -n "$notes" ] || die "CHANGELOG.md's Unreleased section is empty."
+
+today="$(date -u +%Y-%m-%d)"
+awk -v version="$version" -v today="$today" '
+  /^## \[Unreleased\]/ && !done { print "## [Unreleased]"; print ""; print "## [" version "] - " today; done=1; next }
+  { print }
+' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+sed -i.bak "s/^VERSION_NAME=.*/VERSION_NAME=$next/" android/gradle.properties && rm android/gradle.properties.bak
+
+git add CHANGELOG.md android/gradle.properties
+git commit --quiet -m "Release $version"
+git tag -a "v$version" -m "Drop $version"
+git push --quiet origin main "v$version"
+printf 'Released %s: the release workflow is publishing it. Snapshots are now %s.\n' "$version" "$next"

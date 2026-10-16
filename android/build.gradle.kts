@@ -6,4 +6,5 @@ plugins {
   alias(libs.plugins.kotlin.serialization) apply false
   alias(libs.plugins.compose.compiler) apply false
   alias(libs.plugins.openapi.generator) apply false
+  alias(libs.plugins.maven.publish) apply false
 }

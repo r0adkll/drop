@@ -260,10 +260,22 @@ Agreed from the mockups on the [notifications canvas](https://claude.ai/artifact
 ## Releases
 
 The SDK is published to Maven Central under `com.r0adkll.drop` with gradle-maven-publish-plugin,
-the Gradle plugin to the Gradle Plugin Portal as `com.r0adkll.drop`, and the upload and deploy
-Actions are used from their repository paths (`r0adkll/drop/action@v1`, `r0adkll/drop/deploy@v1`).
-All four share one version and are released together. A Deployment runs the release its deploy
-workflow pins ([ADR 0016](adr/0016-config-only-deployment-repositories.md)).
+the Gradle plugin to the Gradle Plugin Portal as `com.r0adkll.drop` (and to Maven Central, which
+snapshots need), and the upload and deploy Actions are used from their repository paths
+(`r0adkll/drop/action@v0`, `r0adkll/drop/deploy@v0`). All four share one version and are released
+together. A Deployment runs the release its deploy workflow pins
+([ADR 0016](adr/0016-config-only-deployment-repositories.md)).
+
+- Versions start at 0.1.0; 1.0 waits until milestone 2's API has settled. `VERSION_NAME` in
+  `android/gradle.properties` is the next release as a `-SNAPSHOT`.
+- `scripts/release <version>` turns `CHANGELOG.md`'s Unreleased section into the version, moves
+  `VERSION_NAME` to the next minor snapshot, and pushes a `v<version>` tag. The tag's workflow
+  (`release.yml`) checks, publishes, creates the GitHub Release with that section as its notes,
+  and moves the major tag (`v0`).
+- Every push to main that touches `android/` publishes snapshots to Maven Central's snapshot
+  repository, the plugin included through its marker artifact.
+- `scripts/publishing-credentials` walks the maintainer through the Central Portal token, the GPG
+  signing key and the Plugin Portal key, storing each as a GitHub secret.
 
 ## Deployment
 

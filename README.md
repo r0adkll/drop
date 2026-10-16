@@ -86,7 +86,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 21 }
       - run: ./gradlew assembleInternal
-      - uses: r0adkll/drop/action@v1
+      - uses: r0adkll/drop/action@v0
         with:
           server: https://drop.example.com
           apk: app/build/outputs/apk/internal/app-internal.apk

@@ -4,6 +4,7 @@
 plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.compose.compiler)
+  alias(libs.plugins.maven.publish)
 }
 
 android {
@@ -24,4 +25,16 @@ dependencies {
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.material3)
+}
+
+mavenPublishing {
+  configure(com.vanniktech.maven.publish.AndroidSingleVariantLibrary(variant = "release", sourcesJar = true, publishJavadocJar = true))
+  publishToMavenCentral(automaticRelease = true)
+  // Snapshots go unsigned; releases are signed with the key the release workflow provides.
+  if (providers.gradleProperty("signingInMemoryKey").isPresent) signAllPublications()
+  pom {
+    name = "Drop Update sheet"
+    description = "The Drop SDK's ready-made Update sheet for Compose and View-based apps."
+    inceptionYear = "2026"
+  }
 }

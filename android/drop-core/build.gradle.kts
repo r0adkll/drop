@@ -8,6 +8,7 @@ plugins {
   alias(libs.plugins.android.kotlin.multiplatform.library)
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.openapi.generator)
+  alias(libs.plugins.maven.publish)
 }
 
 // The Kotlin client, generated on each build from the server's OpenAPI document (ADR 0008).
@@ -60,3 +61,15 @@ kotlin {
 
 // AGP looks for baseline profiles beside every Kotlin source directory, the generated one included.
 tasks.matching { it.name == "prepareAndroidMainArtProfile" }.configureEach { dependsOn(generateApiClient) }
+
+mavenPublishing {
+  // Kotlin Multiplatform publications are configured automatically.
+  publishToMavenCentral(automaticRelease = true)
+  // Snapshots go unsigned; releases are signed with the key the release workflow provides.
+  if (providers.gradleProperty("signingInMemoryKey").isPresent) signAllPublications()
+  pom {
+    name = "Drop core"
+    description = "The platform-free part of the Drop SDK: the Update check client and shared state."
+    inceptionYear = "2026"
+  }
+}

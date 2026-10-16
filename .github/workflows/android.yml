@@ -76,3 +76,27 @@ jobs:
         with:
           server: ${{ vars.DROP_SERVER }}
           apk: sample-debug.apk
+
+  # Every push to main publishes the SDK and the Gradle plugin as VERSION_NAME's -SNAPSHOT to Maven
+  # Central's snapshot repository (docs/design.md#releases). Skipped until the credentials exist.
+  publish-snapshot:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.PUBLISH_SNAPSHOTS == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Publish snapshots
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          grep -q '^VERSION_NAME=.*-SNAPSHOT$' gradle.properties || { echo "::error::VERSION_NAME isn't a snapshot."; exit 1; }
+          ./gradlew --no-configuration-cache publishToMavenCentral :plugin:publishToMavenCentral

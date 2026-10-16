@@ -1,0 +1,83 @@
+name: Release
+
+# A version tag (scripts/release pushes it) publishes the SDK to Maven Central and the Gradle plugin
+# to Maven Central and the Gradle Plugin Portal at that version, creates the GitHub Release from
+# CHANGELOG.md, and moves the major tag (v0) that workflows pin the Actions by
+# (docs/design.md#releases).
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Read the version and its notes
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {found=1; next} /^## \[/ {if (found) exit} found' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ -z "$(sed '/^[[:space:]]*$/d' "$RUNNER_TEMP/notes.md")" ]; then
+            echo "::error::CHANGELOG.md has no notes for $version; release with scripts/release."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "major=v${version%%.*}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Check
+        working-directory: android
+        run: >
+          ./gradlew
+          :plugin:test
+          :drop-core:testAndroidHostTest
+          :drop-android:testDebugUnitTest
+          :drop-android:assembleRelease
+          :drop-noop:assembleRelease
+          :drop-ui:assembleRelease
+          && ./scripts/check-noop-api.sh
+
+      - name: Publish to Maven Central and the Gradle Plugin Portal
+        working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_VERSION_NAME: ${{ steps.version.outputs.version }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: >
+          ./gradlew --no-configuration-cache
+          publishAndReleaseToMavenCentral
+          :plugin:publishAndReleaseToMavenCentral
+          :plugin:publishPlugins
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "Drop ${{ steps.version.outputs.version }}" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+
+      - name: Move the major tag
+        run: |
+          git tag -f "${{ steps.version.outputs.major }}" "$GITHUB_SHA"
+          git push -f origin "refs/tags/${{ steps.version.outputs.major }}"
