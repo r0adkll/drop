@@ -8,7 +8,7 @@ server/wrangler.deployment.json
 .claude/worktrees/
 
 # Android
-android/.gradle/
+android/**/.gradle/
 android/.kotlin/
 android/**/build/
 android/local.properties
