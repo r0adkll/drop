@@ -61,6 +61,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Asks whether a newer Build exists for an installed Build (an Update check).
+         * @description The SDK sends what the installed Build is: its Product, its Channel, the run ID from its Stamp (left out by a Build with no Stamp), its Signer and its version code. Newer means a higher run ID on the same Channel (ADR 0009), whether or not the stamped run uploaded a Build; without a Stamp every Build on the Channel counts as newer (ADR 0013). Only Builds with the installed Signer are offered as Updates (ADR 0006). Responses are never cached.
+         */
+        get: operations["checkForUpdate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/b/{buildId}": {
         parameters: {
             query?: never;
@@ -198,13 +218,58 @@ export interface components {
          * @description A stable, machine-readable reason. New codes may be added; clients treat an unknown code as a generic failure.
          * @enum {string}
          */
-        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "owner_not_listed" | "app_not_installed" | "repository_not_selected" | "webhook_signature_invalid" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch";
+        ErrorCode: "not_found" | "internal" | "invalid_request" | "token_missing" | "token_invalid" | "owner_not_listed" | "app_not_installed" | "repository_not_selected" | "webhook_signature_invalid" | "event_not_allowed" | "product_bound_to_other_repository" | "channel_invalid" | "channel_ref_mismatch" | "channel_ended" | "default_branch_ref_invalid" | "build_exists_for_run" | "build_not_found" | "build_run_mismatch" | "file_missing" | "file_size_mismatch" | "file_checksum_mismatch" | "product_not_found" | "sign_in_required";
         WebhookResult: {
             /**
              * @description Whether Drop recorded anything from the event.
              * @enum {string}
              */
             result: "applied" | "ignored";
+        };
+        /** @description An Android application ID, which is the Product (ADR 0015). */
+        ApplicationId: string;
+        ChannelName: string;
+        UpdateCheck: {
+            /**
+             * @description `up_to_date`: no newer Build. `update`: `update` is newer, with the installed Signer. `channel_ended`: the Channel's pull request has closed; `update` is the newest Build with the installed Signer on the default Channel, to switch to, or null when there is none. `reinstall_required`: every newer Build has a different Signer; `update` is the newest of them.
+             * @enum {string}
+             */
+            status: "up_to_date" | "update" | "channel_ended" | "reinstall_required";
+            update?: components["schemas"]["Update"] | null;
+        };
+        /** @description A Build offered to an installed Build. */
+        Update: {
+            buildId: components["schemas"]["BuildId"];
+            channel: components["schemas"]["ChannelName"];
+            /** @description The app's name as Drop shows it. */
+            label: string;
+            versionName: string | null;
+            versionCode: number;
+            /** Format: date-time */
+            uploadedAt: string;
+            /** @description What changed, as the Build page's headline: the pull request title, else the commit message's first line, else the app's name. */
+            headline: string;
+            commitSha: string;
+            /** @description The pull request number on a Pull request channel. */
+            pullRequest: number | null;
+            /** Format: uri */
+            buildUrl: string;
+            /** @description The APK's size in bytes. */
+            fileSize: number;
+            /** @description The APK's SHA-256, to verify before installing. */
+            fileSha256: components["schemas"]["Sha256"];
+            /** Format: uri */
+            downloadUrl: string;
+            /**
+             * Format: date-time
+             * @description When `downloadUrl` stops working; check again for a fresh one after this. It resumes with a `Range` request until then.
+             */
+            downloadUrlExpiresAt: string;
+            /**
+             * @description Why the Update can't install over the installed Build: `version_code` when its version code is lower (Android refuses a downgrade), `signer` when it is signed differently. Either way the Tester must uninstall first, which loses the app's data.
+             * @enum {string}
+             */
+            requiresReinstall?: "version_code" | "signer";
         };
         /** @description 8 random base62 characters. */
         BuildId: string;
@@ -357,6 +422,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadedBuild"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    checkForUpdate: {
+        parameters: {
+            query: {
+                applicationId: components["schemas"]["ApplicationId"];
+                /** @description The Channel from the Stamp, or from the app's Drop configuration without one. */
+                channel: components["schemas"]["ChannelName"];
+                /** @description The GitHub Actions run ID from the installed Build's Stamp. */
+                runId?: number;
+                /** @description The SHA-256 digest of the installed app's signing certificate. */
+                signer: components["schemas"]["Sha256"];
+                /** @description The installed app's version code. */
+                versionCode: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. `404 product_not_found` when the deployment has no such Product, and `403 sign_in_required` for a Private product, which milestone 1 doesn't serve. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCheck"];
                 };
             };
             default: components["responses"]["Error"];

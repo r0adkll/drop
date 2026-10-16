@@ -133,6 +133,30 @@ these rules.
   a heading and one sentence in the Build page's style, agreed as written; the sign-in page gets its
   own design with milestone 2.
 
+## Update check
+
+`GET /api/v1/update` (defined in `server/openapi.yaml`) takes what the installed Build is: its
+application ID, Channel, the run ID from its Stamp (left out without one), its Signer and its
+version code, all read on the device. It needs no sign-in in milestone 1 and is never cached.
+
+- Newer means a higher run ID on the same Channel ([ADR 0009](adr/0009-order-builds-by-run-id.md)),
+  judged from the Stamp alone, so a run that never uploaded still gets correct answers. A Build
+  with no Stamp treats every Build on its Channel as newer
+  ([ADR 0013](adr/0013-stamped-build-identity.md)).
+- The answer is `up_to_date`, `update` (the newest newer Build with the installed Signer),
+  `reinstall_required` (every newer Build is signed differently, so the newest is offered for a
+  reinstall; [ADR 0006](adr/0006-signing-out-of-scope.md)), or `channel_ended` (the default
+  Channel's newest Build with the installed Signer, whatever its run ID, or none).
+- An Update describes what the Build page shows (name, version, headline, commit, pull request,
+  size, SHA-256) plus its download URL and when that URL expires. For now the URL is the Build's
+  `/download` route with an expiry an hour out; milestone 2 can swap in signed URLs without
+  changing the contract. The SDK checks again once it has expired.
+- An Update whose version code is lower than the installed one is still offered, flagged
+  `requiresReinstall: "version_code"`, because Android refuses the downgrade; a differently signed
+  one is flagged `"signer"`. Either way the Tester must uninstall first.
+- An unknown application ID answers `404 product_not_found`; a Private product answers `403
+  sign_in_required` and reveals nothing else, as its Build page does.
+
 ## SDK
 
 - Makes no decisions about when to check or how to tell the Tester. The app checks when it wants,

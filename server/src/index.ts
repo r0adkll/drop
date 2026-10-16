@@ -16,6 +16,7 @@ import { serveDownload } from "./download";
 import { DROP_ICON_SVG } from "./icon";
 import { qrSvg } from "./qr";
 import { applyRetention } from "./retention-job";
+import { checkForUpdate, parseUpdateCheck } from "./update-check";
 import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
 
 type Health = components["schemas"]["Health"];
@@ -86,6 +87,12 @@ export function createApp(deps: Dependencies) {
     const uploaded = await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId);
     waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
     return c.json(uploaded);
+  });
+
+  app.get("/api/v1/update", async (c) => {
+    const installed = parseUpdateCheck(new URL(c.req.url).searchParams);
+    const answer = await checkForUpdate(c.env.DB, installed, deps.now());
+    return c.json(answer, 200, { "cache-control": "no-store" });
   });
 
   app.post("/api/v1/github/webhook", async (c) => {

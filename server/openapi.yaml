@@ -73,6 +73,59 @@ paths:
                 $ref: "#/components/schemas/UploadedBuild"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/update:
+    get:
+      operationId: checkForUpdate
+      summary: Asks whether a newer Build exists for an installed Build (an Update check).
+      description: >
+        The SDK sends what the installed Build is: its Product, its Channel, the run ID from its
+        Stamp (left out by a Build with no Stamp), its Signer and its version code. Newer means a
+        higher run ID on the same Channel (ADR 0009), whether or not the stamped run uploaded a
+        Build; without a Stamp every Build on the Channel counts as newer (ADR 0013). Only Builds
+        with the installed Signer are offered as Updates (ADR 0006). Responses are never cached.
+      parameters:
+        - name: applicationId
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ApplicationId"
+        - name: channel
+          in: query
+          required: true
+          description: The Channel from the Stamp, or from the app's Drop configuration without one.
+          schema:
+            $ref: "#/components/schemas/ChannelName"
+        - name: runId
+          in: query
+          required: false
+          description: The GitHub Actions run ID from the installed Build's Stamp.
+          schema:
+            type: integer
+            minimum: 1
+        - name: signer
+          in: query
+          required: true
+          description: The SHA-256 digest of the installed app's signing certificate.
+          schema:
+            $ref: "#/components/schemas/Sha256"
+        - name: versionCode
+          in: query
+          required: true
+          description: The installed app's version code.
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: >
+            The answer. `404 product_not_found` when the deployment has no such Product, and `403
+            sign_in_required` for a Private product, which milestone 1 doesn't serve.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateCheck"
+        default:
+          $ref: "#/components/responses/Error"
   /b/{buildId}:
     get:
       operationId: getBuildPage
@@ -311,6 +364,8 @@ components:
         - file_missing
         - file_size_mismatch
         - file_checksum_mismatch
+        - product_not_found
+        - sign_in_required
     WebhookResult:
       type: object
       additionalProperties: false
@@ -320,6 +375,89 @@ components:
           description: Whether Drop recorded anything from the event.
           type: string
           enum: [applied, ignored]
+    ApplicationId:
+      description: An Android application ID, which is the Product (ADR 0015).
+      type: string
+      maxLength: 255
+      pattern: "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"
+    ChannelName:
+      type: string
+      maxLength: 64
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    UpdateCheck:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          description: >
+            `up_to_date`: no newer Build. `update`: `update` is newer, with the installed Signer.
+            `channel_ended`: the Channel's pull request has closed; `update` is the newest Build
+            with the installed Signer on the default Channel, to switch to, or null when there is
+            none. `reinstall_required`: every newer Build has a different Signer; `update` is the
+            newest of them.
+          type: string
+          enum: [up_to_date, update, channel_ended, reinstall_required]
+        update:
+          oneOf:
+            - $ref: "#/components/schemas/Update"
+            - type: "null"
+    Update:
+      description: A Build offered to an installed Build.
+      type: object
+      additionalProperties: false
+      required: [buildId, channel, label, versionName, versionCode, uploadedAt, headline, commitSha, pullRequest, buildUrl, fileSize, fileSha256, downloadUrl, downloadUrlExpiresAt]
+      properties:
+        buildId:
+          $ref: "#/components/schemas/BuildId"
+        channel:
+          $ref: "#/components/schemas/ChannelName"
+        label:
+          description: The app's name as Drop shows it.
+          type: string
+        versionName:
+          type: [string, "null"]
+        versionCode:
+          type: integer
+        uploadedAt:
+          type: string
+          format: date-time
+        headline:
+          description: >
+            What changed, as the Build page's headline: the pull request title, else the commit
+            message's first line, else the app's name.
+          type: string
+        commitSha:
+          type: string
+        pullRequest:
+          description: The pull request number on a Pull request channel.
+          type: [integer, "null"]
+        buildUrl:
+          type: string
+          format: uri
+        fileSize:
+          description: The APK's size in bytes.
+          type: integer
+        fileSha256:
+          description: The APK's SHA-256, to verify before installing.
+          allOf:
+            - $ref: "#/components/schemas/Sha256"
+        downloadUrl:
+          type: string
+          format: uri
+        downloadUrlExpiresAt:
+          description: >
+            When `downloadUrl` stops working; check again for a fresh one after this. It resumes
+            with a `Range` request until then.
+          type: string
+          format: date-time
+        requiresReinstall:
+          description: >
+            Why the Update can't install over the installed Build: `version_code` when its version
+            code is lower (Android refuses a downgrade), `signer` when it is signed differently.
+            Either way the Tester must uninstall first, which loses the app's data.
+          type: string
+          enum: [version_code, signer]
     BuildId:
       description: 8 random base62 characters.
       type: string
