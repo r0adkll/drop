@@ -161,7 +161,7 @@ export interface PullRequestEventResult {
 
 /**
  * A `pull_request` event. Closing one, merged or not, ends its Pull request channels, which the
- * comment then notes (docs/design.md#channels).
+ * comment then notes; reopening it opens them again (docs/design.md#channels).
  */
 export async function handlePullRequestEvent(db: D1Database, owners: Record<string, number>, payload: unknown, now: number): Promise<PullRequestEventResult> {
   const body = payload as {
@@ -183,9 +183,7 @@ export async function handlePullRequestEvent(db: D1Database, owners: Record<stri
   ) {
     throw new WebhookPayloadError("The pull_request event is missing its number, repository or installation.");
   }
-  // TODO: `reopened` is ignored: design.md ends a Channel on close, so a reopened pull request's
-  // uploads are refused with channel_ended until reopening is designed.
-  if (body.action !== "closed") return { outcome: "ignored" };
+  if (body.action !== "closed" && body.action !== "reopened") return { outcome: "ignored" };
   if (!isListedOwner(owners, repository.owner)) return { outcome: "ignored" };
 
   const pullRequest = body.number!;
@@ -194,6 +192,23 @@ export async function handlePullRequestEvent(db: D1Database, owners: Record<stri
     .bind(pullRequest, repository.id)
     .first<{ n: number }>();
   if (!channels?.n) return { outcome: "ignored" };
+
+  const comment = { repositoryId: repository.id, repository: repository.full_name, pullRequest, installationId: installation.id };
+  if (body.action === "reopened") {
+    // Builds already deleted stay deleted; the next upload lands on the open Channel again.
+    await db.batch([
+      db
+        .prepare(
+          `UPDATE channels SET ended_at = NULL WHERE pull_request = ?
+           AND application_id IN (SELECT application_id FROM products WHERE repository_id = ?)`,
+        )
+        .bind(pullRequest, repository.id),
+      db
+        .prepare("UPDATE pull_request_comments SET closed_at = NULL, merged = NULL, deleted_note_at = NULL WHERE repository_id = ? AND pull_request = ?")
+        .bind(repository.id, pullRequest),
+    ]);
+    return { outcome: "applied", comment };
+  }
 
   const closedAt = (body.pull_request?.closed_at && Date.parse(body.pull_request.closed_at)) || now;
   const merged = body.pull_request?.merged === true ? 1 : 0;
@@ -211,8 +226,5 @@ export async function handlePullRequestEvent(db: D1Database, owners: Record<stri
       )
       .bind(repository.id, pullRequest, closedAt, merged),
   ]);
-  return {
-    outcome: "applied",
-    comment: { repositoryId: repository.id, repository: repository.full_name, pullRequest, installationId: installation.id },
-  };
+  return { outcome: "applied", comment };
 }

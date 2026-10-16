@@ -224,10 +224,45 @@ describe("pull request comments from uploads and webhooks", () => {
     expect(await refused.json()).toMatchObject({ code: "channel_ended" });
   });
 
+  it("opens the Channel again when the pull request reopens, and rewrites the comment", async () => {
+    const s = await setup();
+    const applicationId = uniqueApplicationId();
+    const buildId = await uploadToPullRequest(s, applicationId);
+    await deliver(s, closedEvent(s));
+    await vi.waitFor(() => expect(s.comments()[0]!.body).toContain("This pull request was merged"));
+
+    expect(await deliver(s, closedEvent(s, { action: "reopened", pull_request: { merged: false, closed_at: null } }))).toEqual({ status: 200, body: { result: "applied" } });
+    const channel = await env.DB.prepare(
+      "SELECT ended_at FROM channels WHERE pull_request = ? AND application_id = ?",
+    ).bind(s.pullRequest, applicationId).first<{ ended_at: number | null }>();
+    expect(channel?.ended_at).toBeNull();
+    await vi.waitFor(() => expect(s.comments()[0]!.body).not.toContain("[!NOTE]"));
+    expect(s.comments()[0]!.body).toContain(`/b/${buildId}/qr.svg`);
+
+    // Uploads are accepted again.
+    s.claims.run_id = String(nextRepositoryId());
+    const next = await uploadToPullRequest(s, applicationId);
+    await vi.waitFor(() => expect(s.comments()[0]!.body).toContain(`/b/${next}/qr.svg`));
+    expect(s.comments()).toHaveLength(1);
+  });
+
+  it("says a reopened pull request has no Builds when retention already deleted them", async () => {
+    const s = await setup();
+    const applicationId = uniqueApplicationId();
+    await uploadToPullRequest(s, applicationId);
+    await deliver(s, closedEvent(s));
+    await vi.waitFor(() => expect(s.comments()[0]!.body).toContain("This pull request was merged"));
+    await env.DB.prepare("UPDATE builds SET deleted_at = ? WHERE application_id = ?").bind(NOW, applicationId).run();
+
+    await deliver(s, closedEvent(s, { action: "reopened" }));
+    await vi.waitFor(() => expect(s.comments()[0]!.body).toContain("This pull request has no Builds on Drop right now."));
+    expect(s.comments()).toHaveLength(1);
+  });
+
   it("ignores other actions, other accounts and pull requests without Builds", async () => {
     const s = await setup();
     await uploadToPullRequest(s);
-    expect((await deliver(s, closedEvent(s, { action: "reopened" }))).body).toEqual({ result: "ignored" });
+    expect((await deliver(s, closedEvent(s, { action: "edited" }))).body).toEqual({ result: "ignored" });
     expect((await deliver(s, closedEvent(s, { repository: { id: s.repositoryId, full_name: "x/y", owner: { id: 999, login: "stranger" } } }))).body).toEqual({ result: "ignored" });
     expect((await deliver(s, closedEvent(s, { number: nextPullRequest() }))).body).toEqual({ result: "ignored" });
     expect((await deliver(s, { action: "closed" })).status).toBe(400);

@@ -74,6 +74,14 @@ export function renderDeletedComment({ deletedAt, defaultChannel }: CommentDelet
 }
 
 /**
+ * What an open pull request's comment says while it has no Builds: after it was reopened with its
+ * Builds already deleted, or after a Deployment's operator deleted them.
+ */
+export function renderNoBuildsComment(): string {
+  return `${COMMENT_MARKER}\n\n> [!NOTE]\n> This pull request has no Builds on Drop right now. The next run that uploads one adds it here.\n`;
+}
+
+/**
  * One Build's block: its QR code beside its name, version, Channel, commit and CI run. A commit
  * comment leaves out the commit, which it is already on.
  */
@@ -213,7 +221,10 @@ export async function updatePullRequestComment(db: D1Database, github: GitHubApp
   let written: string | undefined;
   for (let round = 0; round < 3; round++) {
     const content = await commentContent(db, baseUrl, target);
-    if (!content) return;
+    if (!content) {
+      if (round === 0) await noteNoBuilds(db, github, target);
+      return;
+    }
     const body = renderPullRequestComment(content);
     if (body === written) return;
     await writeComment(db, github, target, body);
@@ -267,6 +278,34 @@ async function writeComment(db: D1Database, github: GitHubApp, target: CommentTa
   }
   if (keep.id !== created.id) await edit(keep.id);
   await remember(keep.id);
+}
+
+/**
+ * Edits an open pull request's comment to say it has no Builds, when it has a comment and Pull
+ * request channels but no Build is left on them. Never posts: a pull request that never had a
+ * Build has nothing to say.
+ */
+async function noteNoBuilds(db: D1Database, github: GitHubApp, target: CommentTarget): Promise<void> {
+  const row = await db
+    .prepare(
+      `SELECT prc.comment_id FROM pull_request_comments prc
+       WHERE prc.repository_id = ? AND prc.pull_request = ? AND prc.comment_id IS NOT NULL AND prc.closed_at IS NULL
+         AND EXISTS (SELECT 1 FROM channels c JOIN products p ON p.application_id = c.application_id
+                     WHERE p.repository_id = prc.repository_id AND c.pull_request = prc.pull_request)`,
+    )
+    .bind(target.repositoryId, target.pullRequest)
+    .first<{ comment_id: number }>();
+  if (!row) return;
+  await github
+    .request(`/repos/${escapePath(target.repository)}/issues/comments/${row.comment_id}`, {
+      method: "PATCH",
+      body: { body: renderNoBuildsComment() },
+      installation: target.installationId,
+    })
+    .catch((error: unknown) => {
+      // Deleted by hand: leave it deleted.
+      if (!(error instanceof GitHubError && error.status === 404)) throw error;
+    });
 }
 
 // ---------------------------------------------------------------------------------------------

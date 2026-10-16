@@ -6,6 +6,11 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Changed
+
+- Server: reopening a pull request opens its Channel again, so its runs can upload once more, and
+  its comment goes back to listing its Builds (or says it has none until the next upload).
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

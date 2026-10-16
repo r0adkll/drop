@@ -28,7 +28,7 @@ _Avoid_: Main channel, stable channel
 
 **Pull request channel**:
 A Channel holding the Builds of one pull request; it ends when the pull request is merged or
-closed.
+closed, and opens again if it is reopened.
 _Avoid_: PR track, branch channel
 
 **Signer**:

@@ -65,6 +65,9 @@ It does not configure signing ([ADR 0006](adr/0006-signing-out-of-scope.md)) or 
   answers that the Channel has closed and offers the default Channel's newest Build, and the SDK
   asks the Tester whether to switch. Drop keeps a record of ended Channels after their Builds are
   deleted, so this still works after cleanup.
+- When the pull request is reopened, its Channel opens again: uploads to it are accepted and the
+  closed pull request's deletion stops. Builds already deleted stay deleted, and Builds that
+  switched to the default Channel stay there.
 
 ## Upload authentication
 
@@ -252,7 +255,8 @@ The GitHub App keeps one comment per pull request and edits it in place: a block
 its newest Build's 128px QR code beside its icon, name, version, Channel, head commit, CI run and
 Build page link. When the pull request closes, the comment notes when its Builds will be deleted
 and that Testers will be offered the default Channel's newest Build. Once they are deleted, the
-retention job edits the comment down to that note.
+retention job edits the comment down to that note. When the pull request is reopened, the comment
+goes back to its Builds, or says it has none until the next upload.
 
 ## Commit comments
 
