@@ -37,6 +37,7 @@ import com.r0adkll.drop.DropState
 import com.r0adkll.drop.ReinstallReason
 import com.r0adkll.drop.Update
 import com.r0adkll.drop.UpdateCheckResult
+import com.r0adkll.drop.ui.DropUpdateSheet
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -86,6 +87,11 @@ private fun SampleScreen(drop: Drop) {
       enabled = !checking,
     ) { Text(if (checking) "Checking…" else "Check for an Update") }
     lastCheck?.let { Text(describe(it), style = MaterialTheme.typography.bodyMedium) }
+
+    // The ready-made sheet; the rest of this screen drives the SDK by hand.
+    var showSheet by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { showSheet = true }) { Text("Show the Update sheet") }
+    if (showSheet) DropUpdateSheet(drop = drop, onDismiss = { showSheet = false })
 
     Card(Modifier.fillMaxWidth()) {
       Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

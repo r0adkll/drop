@@ -191,6 +191,29 @@ version code, all read on the device. It needs no sign-in in milestone 1 and is 
   reopening the sheet resumes at the install step. The SDK posts no notifications of its own. The
   saved file is deleted once installed or when a newer Update replaces it.
 
+### Update sheet
+
+Agreed from the mockups on the [Update sheet canvas](https://claude.ai/artifact/96tyNGZTQqfgf4r3TfWGZK).
+
+- A Material 3 modal bottom sheet over the app: the app's icon, "Update available", the version,
+  what changed (the Update's headline), its Channel, age and size, **Update** and **Not now**, and
+  a link to its Build page.
+- **Update** first asks for *Install unknown apps* when the app lacks it (Settings opens, and the
+  sheet carries on when the app resumes), then downloads, so the only wait comes after every
+  detour. Downloading shows progress; **Hide** closes the sheet while the download carries on, and
+  **Cancel download** deletes it.
+- Ready to install explains what happens next before every install: Android's confirmation, then,
+  for a signing key Play Protect hasn't seen, its "App blocked" warning and **More details →
+  Install anyway**. A cancelled install offers **Try again** without downloading again, or removing
+  the download.
+- An Update that can't install in place (a lower version code, or a different Signer) explains why
+  in the Tester's terms, warns that uninstalling deletes the app's data, lists the two steps
+  (uninstall, then install from the Build page) and opens the Build page: the sheet can't reinstall
+  the app itself, since uninstalling deletes its download too.
+- When the Channel's pull request has ended, the sheet says so and offers the default Channel's
+  newest Build with **Switch to main**, which installs it like any Update; when that Build needs a
+  reinstall, the same screen carries the reinstall warning and opens its Build page.
+
 ## Pull request comments
 
 The GitHub App keeps one comment per pull request and edits it in place: a block per Product with

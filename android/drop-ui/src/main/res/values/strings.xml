@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Update sheet's copy, agreed in docs/design.md#update-sheet. -->
+<resources>
+  <string name="drop_update_available">Update available</string>
+  <string name="drop_version">%1$s %2$s (%3$d)</string>
+  <string name="drop_version_no_name">%1$s (%2$d)</string>
+  <string name="drop_what_changed">What changed</string>
+  <string name="drop_update_meta">%1$s · %2$s</string>
+  <string name="drop_update">Update</string>
+  <string name="drop_not_now">Not now</string>
+  <string name="drop_open_build_page">Open its Build page</string>
+
+  <string name="drop_reinstall_title">Update needs a reinstall</string>
+  <string name="drop_reinstall_version_code">Its version code, %1$d, is lower than this app\'s, %2$d, and Android won\'t install a lower one over it.</string>
+  <string name="drop_reinstall_signer">It\'s signed with a different key from this app, and Android only updates an app with the key it was installed with.</string>
+  <string name="drop_reinstall_unknown">Android can\'t install it over this app.</string>
+  <string name="drop_reinstall_step_uninstall">Uninstall %1$s.</string>
+  <string name="drop_reinstall_step_uninstall_cost">This deletes its data on this phone.</string>
+  <string name="drop_reinstall_step_install">Install this Build from its Build page.</string>
+  <string name="drop_reinstall_open">Open Build page</string>
+
+  <string name="drop_channel_ended_title_pr">Pull request #%1$d was merged or closed</string>
+  <string name="drop_channel_ended_title">%1$s has ended</string>
+  <string name="drop_channel_ended_body">Builds on %1$s won\'t get any more Updates. Switch to %2$s to keep getting them.</string>
+  <string name="drop_channel_ended_nothing">Builds on %1$s won\'t get any more Updates, and there\'s nothing to switch to yet.</string>
+  <string name="drop_channel_ended_newest">Newest on %1$s · %2$s</string>
+  <string name="drop_switch_to">Switch to %1$s</string>
+
+  <string name="drop_permission_title">Let %1$s install its updates</string>
+  <string name="drop_permission_body">Android asks once before an app can install updates itself. In the settings that open, turn on Allow from this source, then come back here.</string>
+  <string name="drop_permission_then">Then %1$s downloads, %2$s.</string>
+  <string name="drop_open_settings">Open settings</string>
+
+  <string name="drop_downloading_title">Downloading update</string>
+  <string name="drop_downloading_progress">%1$s of %2$s</string>
+  <string name="drop_downloading_body">Keep using %1$s. The download carries on in the background, and the update waits here once it\'s checked.</string>
+  <string name="drop_hide">Hide</string>
+  <string name="drop_cancel_download">Cancel download</string>
+
+  <string name="drop_ready_title">Ready to install</string>
+  <string name="drop_ready_subtitle">%1$s, downloaded and checked</string>
+  <string name="drop_ready_next">What happens next</string>
+  <string name="drop_ready_step_confirm">Android asks you to confirm the update.</string>
+  <string name="drop_ready_step_play_protect">If Google Play Protect says the app is blocked, tap More details, then Install anyway. It hasn\'t seen your team\'s signing key before, which is expected for test builds.</string>
+  <string name="drop_ready_step_reopen">%1$s closes and reopens on the new version.</string>
+  <string name="drop_install">Install</string>
+  <string name="drop_installing">Installing…</string>
+  <string name="drop_later">Later</string>
+
+  <string name="drop_failed_title">The update didn\'t install</string>
+  <string name="drop_failed_kept">The download is still on this phone, so trying again doesn\'t download it again.</string>
+  <string name="drop_try_again">Try again</string>
+  <string name="drop_remove_download">Remove the download</string>
+
+  <string name="drop_up_to_date">%1$s is up to date</string>
+  <string name="drop_close">Close</string>
+</resources>

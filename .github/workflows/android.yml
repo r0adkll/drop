@@ -39,6 +39,7 @@ jobs:
           :drop-android:testDebugUnitTest
           :drop-android:assembleRelease
           :drop-noop:assembleRelease
+          :drop-ui:assembleRelease
           :sample:assembleDebug
           :sample:assembleRelease
         env:

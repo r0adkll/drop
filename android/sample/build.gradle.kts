@@ -50,6 +50,7 @@ configurations.configureEach {
 }
 
 dependencies {
+  implementation(project(":drop-ui"))
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.material3)
