@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseChannel, commitDetails, type RunContext } from "../src/run-context.ts";
+import { chooseChannel, commitDetails, namedChannel, type RunContext } from "../src/run-context.ts";
 
 const BUILT = "a".repeat(40);
 const HEAD = "9f3c2a1".padEnd(40, "0");
@@ -7,6 +7,15 @@ const HEAD = "9f3c2a1".padEnd(40, "0");
 function run(overrides: Partial<RunContext>): RunContext {
   return { eventName: "push", ref: "refs/heads/main", refName: "main", sha: BUILT, payload: { repository: { default_branch: "main" } }, ...overrides };
 }
+
+describe("namedChannel", () => {
+  it("takes the input, else DROP_CHANNEL, and warns when they differ", () => {
+    expect(namedChannel(undefined, undefined)).toEqual({ channel: undefined });
+    expect(namedChannel(undefined, "beta")).toEqual({ channel: "beta" });
+    expect(namedChannel("beta", "beta")).toEqual({ channel: "beta" });
+    expect(namedChannel("nightly", "beta")).toMatchObject({ channel: "nightly", warning: expect.stringContaining("DROP_CHANNEL (beta)") });
+  });
+});
 
 describe("chooseChannel", () => {
   it("sends default-branch runs to main", () => {

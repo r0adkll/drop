@@ -7,7 +7,7 @@ import { adaptiveIconSvg, parseResourceTable, parseXmlTree, UnsupportedIcon } fr
 import { findBuildTools, parseBadging, parseSignerDigest, pickIcon } from "./apk-tools.ts";
 import { readCommitMessage } from "./git.ts";
 import { renderSvg, webpToPng } from "./raster.ts";
-import { chooseChannel, commitDetails, type EventPayload, type RunContext } from "./run-context.ts";
+import { chooseChannel, commitDetails, namedChannel, type EventPayload, type RunContext } from "./run-context.ts";
 import { upload, type CreateUploadRequest } from "./upload.ts";
 
 const MAX_ICON_BYTES = 1024 * 1024;
@@ -25,7 +25,9 @@ async function main(): Promise<void> {
   const signerSha256 = parseSignerDigest(run(tools.apksigner, ["verify", "--print-certs", apkPath]));
 
   const runContext = readRunContext();
-  const { channel, defaultBranch } = chooseChannel(runContext, core.getInput("channel") || undefined);
+  const named = namedChannel(core.getInput("channel") || undefined, process.env.DROP_CHANNEL || undefined);
+  if (named.warning) core.warning(named.warning);
+  const { channel, defaultBranch } = chooseChannel(runContext, named.channel);
   const commit = commitDetails(runContext, gitMessage);
 
   const icon = await readIcon(apkPath, iconInput, badging.icons, tools.aapt2);

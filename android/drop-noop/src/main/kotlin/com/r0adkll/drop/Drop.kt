@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 @Suppress("UNUSED_PARAMETER")
 public class Drop(context: Context, config: DropConfig) {
+  /** Matches drop-android's constructor, without reading the manifest, so a store build can't fail here. */
+  public constructor(context: Context) : this(context, DropConfig(serverUrl = ""))
+
   private val packageName = context.packageName
 
   public val state: StateFlow<DropState> = MutableStateFlow<DropState>(DropState.Idle).asStateFlow()

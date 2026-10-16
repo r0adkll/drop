@@ -23324,6 +23324,12 @@ function chunk(type, data) {
 
 // src/run-context.ts
 var DEFAULT_CHANNEL = "main";
+function namedChannel(input, env) {
+  if (input && env && input !== env) {
+    return { channel: input, warning: `The channel input (${input}) differs from DROP_CHANNEL (${env}), which the Gradle plugin stamped into the APK; uploading to ${input}.` };
+  }
+  return { channel: input || env || void 0 };
+}
 function chooseChannel(run2, input) {
   if (input) return { channel: input, defaultBranch: false };
   if (run2.eventName === "pull_request") {
@@ -23404,7 +23410,9 @@ async function main() {
   const badging = parseBadging(run(tools.aapt2, ["dump", "badging", apkPath]));
   const signerSha256 = parseSignerDigest(run(tools.apksigner, ["verify", "--print-certs", apkPath]));
   const runContext = readRunContext();
-  const { channel, defaultBranch } = chooseChannel(runContext, getInput("channel") || void 0);
+  const named = namedChannel(getInput("channel") || void 0, process.env.DROP_CHANNEL || void 0);
+  if (named.warning) warning(named.warning);
+  const { channel, defaultBranch } = chooseChannel(runContext, named.channel);
   const commit = commitDetails(runContext, gitMessage);
   const icon = await readIcon(apkPath, iconInput, badging.icons, tools.aapt2);
   const request = {

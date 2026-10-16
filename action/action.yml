@@ -13,8 +13,9 @@ inputs:
     required: true
   channel:
     description: >
-      The Channel to upload to. Defaults to `main` for runs on the default branch and `pr/<number>`
-      for pull requests; any other run must set it.
+      The Channel to upload to. Defaults to the job's `DROP_CHANNEL` environment variable, which the
+      Gradle plugin also stamps into the APK, then to `main` for runs on the default branch and
+      `pr/<number>` for pull requests; any other run must set one.
     required: false
   icon:
     description: >

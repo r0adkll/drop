@@ -29,6 +29,9 @@ import kotlinx.coroutines.withContext
  * nothing.
  */
 public class Drop(context: Context, private val config: DropConfig) {
+  /** Reads the config the Gradle plugin wrote into the manifest. */
+  public constructor(context: Context) : this(context, DropManifest.read(context))
+
   private val app = context.applicationContext
   private val store = DropStore(app)
   private val checker = UpdateChecker(config.serverUrl, OkHttp.create())

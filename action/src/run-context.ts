@@ -26,6 +26,18 @@ export interface ChannelChoice {
 const DEFAULT_CHANNEL = "main";
 
 /**
+ * The Channel the workflow names, if any: the `channel` input, else the job's `DROP_CHANNEL`
+ * environment variable, which the Gradle plugin also stamps from so APKs and uploads agree. A
+ * `warning` is returned when both are set and differ; the input wins.
+ */
+export function namedChannel(input: string | undefined, env: string | undefined): { channel?: string; warning?: string } {
+  if (input && env && input !== env) {
+    return { channel: input, warning: `The channel input (${input}) differs from DROP_CHANNEL (${env}), which the Gradle plugin stamped into the APK; uploading to ${input}.` };
+  }
+  return { channel: input || env || undefined };
+}
+
+/**
  * The Channel per docs/design.md#channels: default-branch runs (push, workflow_dispatch, schedule)
  * go to `main`, pull requests to `pr/<number>`, and any other run must name its Channel. Only a run
  * that takes the default name marks the default Channel, so a nightly schedule that names its own

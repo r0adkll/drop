@@ -57,3 +57,6 @@ kotlin {
     }
   }
 }
+
+// AGP looks for baseline profiles beside every Kotlin source directory, the generated one included.
+tasks.matching { it.name == "prepareAndroidMainArtProfile" }.configureEach { dependsOn(generateApiClient) }
