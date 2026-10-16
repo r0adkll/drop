@@ -1,4 +1,4 @@
-// A small app that checks a Drop deployment for Updates to itself and installs them. CI uploads it
+// A small app that checks a Drop deployment for Updates to itself and installs them (test). CI uploads it
 // to a deployment when the repository sets the DROP_SERVER variable.
 
 plugins {
