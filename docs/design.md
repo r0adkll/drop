@@ -234,7 +234,9 @@ workflow pins ([ADR 0016](adr/0016-config-only-deployment-repositories.md)).
      ([ADR 0010](adr/0010-github-app-for-access.md)), serving a form on `127.0.0.1` that posts the
      manifest to GitHub and taking GitHub's redirect back; its private key, webhook secret and
      client secret go to `.dev.vars`. `--recreate-app` makes a new one (the old one is deleted on
-     GitHub by hand); `--skip-app` leaves it for later.
+     GitHub by hand); `--skip-app` leaves it for later. A manifest can't carry a logo, so a new App
+     leaves one step for the end: uploading `docs/assets/drop-app-logo.png` on the App's settings
+     page.
   6. *First deploy:* a deploy fails while a required secret is missing from the Worker, so the first
      one uploads `.dev.vars` with it (`wrangler deploy --secrets-file`). For a Worker that already
      exists, setup stores any secrets it just wrote with `wrangler secret bulk`.

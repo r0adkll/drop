@@ -252,6 +252,7 @@ describe("GitHub App stage", () => {
     expect(JSON.stringify(run.lock())).not.toContain("hook-secret");
     expect(run.ctx.secretsChanged).toBe(true);
     expect(run.logs.join("\n")).toContain("private App");
+    expect(run.ctx.deferred).toEqual([expect.stringMatching(/drop-app-logo\.png under Display information at https:\/\/github\.com\/settings\/apps\/drop-example$/)]);
   });
 
   it("is already done when the lockfile has an App, and needs a GitHub login otherwise", async () => {

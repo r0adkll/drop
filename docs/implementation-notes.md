@@ -99,7 +99,9 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   `client_secret`, `webhook_secret` and `pem`. The whole flow must finish within an hour. GitHub's
   docs don't say whether a loopback `redirect_url` such as `http://127.0.0.1:<port>/callback` is
   accepted; Probot's setup uses `localhost` the same way (*unverified* for 127.0.0.1). App names are
-  limited to 34 characters (*unverified*; the docs give no limit).
+  limited to 34 characters (*unverified*; the docs give no limit). A manifest has no logo field and
+  the REST API can't set one, so the logo is uploaded by hand under *Display information* on the
+  App's settings page; GitHub rounds it in comments and circles it in some lists.
 - It must be installable by other accounts so a deployment can list several, which lets strangers
   install it too; ignore installations and webhooks from accounts whose ID isn't a locked Owner.
 - Drop learns which repositories an installation covers from `installation` and

@@ -3,12 +3,17 @@
 // point. Every side effect goes through SetupIO, so the stages are tested without wrangler, gh,
 // GitHub or Cloudflare.
 
+import { join } from "node:path";
 import { AwsClient } from "aws4fetch";
 import {
   appIsPublic, appManifest, appSecrets, convertManifestCode, pushSecrets, runManifestFlow, setupAccount, workerExists,
   type ProcessResult, type ProcessRunner,
 } from "./github-app.ts";
 import { githubOwnerLookup, resolveLock, type CloudflareLock, type LockFile } from "./lock.ts";
+import { REPOSITORY_ROOT } from "./paths.ts";
+
+/** Drop's icon as a GitHub App logo: square, because GitHub rounds or circles it itself. */
+export const APP_LOGO = join(REPOSITORY_ROOT, "docs", "assets", "drop-app-logo.png");
 
 export interface Prompts {
   ask(question: string): Promise<string>;
@@ -332,6 +337,8 @@ export const appStage: Stage = {
     ctx.files.writeDevVars(appSecrets(app));
     ctx.files.writeLock({ ...lockOf(ctx), app: { id: app.id, slug: app.slug, clientId: app.client_id } });
     ctx.secretsChanged = true;
+    // A manifest can't carry a logo, so the App starts with GitHub's generated one.
+    ctx.deferred.push(`Give the GitHub App Drop's icon: upload ${APP_LOGO} under Display information at https://github.com/settings/apps/${app.slug}`);
     return { status: "done", summary: `Created ${app.name} (${app.html_url}); its secrets are in .dev.vars.` };
   },
 };
