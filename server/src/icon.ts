@@ -1,0 +1,4 @@
+// Drop's own icon, docs/assets/drop-icon.svg, for the favicon and the Build page footer. A test keeps
+// the two identical; edit the file there and copy it here.
+export const DROP_ICON_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#0B7A66"/><path d="M50 12L27.67 44.81A27 27 0 1 0 72.33 44.81Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/><path d="M50 39V70M38.5 59L50 70.5 61.5 59" fill="none" stroke="#0B7A66" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;

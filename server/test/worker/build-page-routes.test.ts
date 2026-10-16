@@ -27,6 +27,8 @@ describe("GET /b/{buildId}", () => {
     const html = await response.text();
     expect(html).toContain(`<meta property="og:image" content="https://drop.example.com/b/${build.id}/icon">`);
     expect(html).toContain("Newest on pr/142");
+    expect(html).toContain(`<link rel="icon" href="/favicon.svg" type="image/svg+xml">`);
+    expect(html).toMatch(/<footer class="wrap foot"><span class="mark" aria-hidden="true"><svg [^]*<\/svg><\/span>Served by Drop · drop\.example\.com<\/footer>/);
   });
 
   it("marks an older Build as superseded by the Channel's newest", async () => {

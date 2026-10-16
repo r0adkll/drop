@@ -202,6 +202,18 @@ paths:
                 format: binary
         default:
           $ref: "#/components/responses/Error"
+  /favicon.svg:
+    get:
+      operationId: getFavicon
+      summary: Drop's own icon.
+      description: The favicon of every Build page.
+      responses:
+        "200":
+          description: The icon.
+          content:
+            image/svg+xml:
+              schema:
+                type: string
   /api/v1/github/webhook:
     post:
       operationId: receiveGitHubWebhook

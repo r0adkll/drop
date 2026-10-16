@@ -9,6 +9,15 @@ describe("GET /api/v1/health", () => {
   });
 });
 
+describe("GET /favicon.svg", () => {
+  it("serves Drop's icon", async () => {
+    const response = await exports.default.fetch("https://drop.example.com/favicon.svg");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml");
+    expect(await response.text()).toMatch(/^<svg /);
+  });
+});
+
 describe("unknown routes", () => {
   it("answer with an Error", async () => {
     const response = await exports.default.fetch("https://drop.example.com/nope");

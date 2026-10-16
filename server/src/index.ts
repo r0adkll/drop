@@ -12,6 +12,7 @@ import { r2Presigner, type Presigner } from "./presign";
 import { loadBuildPage } from "./build-page/model";
 import { PAGE_SCRIPT, renderBuildPage } from "./build-page/render";
 import { serveDownload } from "./download";
+import { DROP_ICON_SVG } from "./icon";
 import { qrSvg } from "./qr";
 import { applyRetention } from "./retention-job";
 import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
@@ -54,6 +55,8 @@ export function createApp(deps: Dependencies) {
   }
 
   app.get("/api/v1/health", (c) => c.json<Health>({ status: "ok" }));
+
+  app.get("/favicon.svg", (c) => c.body(DROP_ICON_SVG, 200, { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" }));
 
   app.post("/api/v1/uploads", async (c) => {
     const claims = await claimsOf(c);

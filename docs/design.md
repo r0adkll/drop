@@ -119,6 +119,8 @@ these rules.
   inline styles, its one script by hash, and same-origin images. A Product's configured icon is
   therefore served through `/b/<id>/icon` rather than linked directly. Build pages ask search
   engines not to index them.
+- Drop's own icon (`docs/assets/drop-icon.svg`) is the page's favicon, served at `/favicon.svg`,
+  and sits inline beside "Served by Drop" in the footer.
 - The phone layout applies below 720px wide, chosen by a media query rather than the user agent.
 - Install and Download APK fetch `/b/<id>/download`, which supports a single byte range with
   `If-Range`, so an interrupted download resumes unless a later attempt has replaced the file.

@@ -1,4 +1,5 @@
 import { closedPullRequestHours } from "../config";
+import { DROP_ICON_SVG } from "../icon";
 import { qrSvg } from "../qr";
 import { buildDays, pullRequestBuildDays, type Kept } from "../retention";
 import type { BuildPageModel, LinkedBuild, PageBuild } from "./model";
@@ -256,7 +257,7 @@ function dl(rows: [string, string][]): string {
 }
 
 function footer(ctx: RenderContext): string {
-  return `<footer class="wrap foot">Served by Drop · ${esc(new URL(ctx.baseUrl).host)}</footer>`;
+  return `<footer class="wrap foot"><span class="mark" aria-hidden="true">${DROP_ICON_SVG}</span>Served by Drop · ${esc(new URL(ctx.baseUrl).host)}</footer>`;
 }
 
 /** UTC on the server; the page's script rewrites it in the Tester's own time zone. */
@@ -298,7 +299,7 @@ function document(meta: Meta, body: string): string {
     `<meta name="color-scheme" content="light dark"><meta name="robots" content="noindex">` +
     `<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">` +
     `<meta name="theme-color" content="#161D1A" media="(prefers-color-scheme: dark)">` +
-    `<title>${esc(meta.title)}</title>` +
+    `<title>${esc(meta.title)}</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">` +
     (meta.description ? `<meta name="description" content="${esc(meta.description)}">` : "") +
     og +
     `<style>${STYLES}</style></head><body>${body}<script>${PAGE_SCRIPT}</script></body></html>`
@@ -456,7 +457,8 @@ h1{margin:0;font-size:32px;line-height:1.15;letter-spacing:-.01em;font-weight:70
 .help{display:grid;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:14px}
 .help p{margin:0}
 .next-panel .btn{width:100%}
-.foot{color:var(--muted);font-size:12.5px;padding-block:8px 28px}
+.foot{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px;padding-block:8px 28px}
+.foot .mark svg{display:block;width:14px;height:14px}
 .phone-only{display:none}
 .install-bar.phone-only{display:none}
 @media (max-width:720px){
