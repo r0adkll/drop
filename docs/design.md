@@ -70,6 +70,23 @@ It does not configure signing ([ADR 0006](adr/0006-signing-out-of-scope.md)) or 
   closed pull request's deletion stops. Builds already deleted stay deleted, and Builds that
   switched to the default Channel stay there.
 
+## Form factors
+
+([ADR 0017](adr/0017-builds-have-a-form-factor.md))
+
+- A Build is `mobile` or `wear`. The upload Action reads it from the APK: an APK that declares the
+  `android.hardware.type.watch` feature is `wear`, any other `mobile`. An upload that doesn't say is
+  `mobile`.
+- A run uploads one Build per Product and Form factor, so a workflow uploads its phone and watch
+  APKs with two steps of the Action, in any order. A Wear Build goes to the Channel the run would
+  choose for its phone APK.
+- The Update check takes the installed Build's Form factor (`mobile` when absent) and offers only
+  Builds of that Form factor; the SDK sends `wear` on a watch. Retention keeps the newest Build of
+  each Form factor on every open Channel.
+- Until the Wear surfaces are designed, Wear Builds have their Build page and download, reached
+  from the link the Action prints, but are left out of the site pages, the pull request comment,
+  commit comments and webhooks, which go on describing the mobile Builds.
+
 ## Upload authentication
 
 Any GitHub workflow anywhere can obtain a validly signed OIDC token, so a valid signature proves
@@ -176,9 +193,11 @@ engines not to index them.
 ## Update check
 
 `GET /api/v1/update` (defined in `server/openapi.yaml`) takes what the installed Build is: its
-application ID, Channel, the run ID from its Stamp (left out without one), its Signer and its
-version code, all read on the device. It needs no sign-in in milestone 1 and is never cached.
+application ID, Channel, the run ID from its Stamp (left out without one), its Signer, its version
+code and its Form factor, all read on the device. It needs no sign-in in milestone 1 and is never
+cached.
 
+- Only Builds of the installed Build's Form factor are considered, for every answer below.
 - Newer means a higher run ID on the same Channel ([ADR 0009](adr/0009-order-builds-by-run-id.md)),
   judged from the Stamp alone, so a run that never uploaded still gets correct answers. A Build
   with no Stamp treats every Build on its Channel as newer
@@ -390,7 +409,7 @@ together. A Deployment runs the release its deploy workflow pins
 
 ## Retention
 
-- The newest Build of every open Channel is always kept.
+- The newest Build of each Form factor on every open Channel is always kept.
 - Other Builds are deleted 30 days after upload, or 7 days for Builds on a Pull request channel.
 - A Pull request channel and all its Builds are deleted 24 hours after its pull request closes.
 - Deleting a Build deletes its APK but keeps its icon, which is small, so its expired Build page

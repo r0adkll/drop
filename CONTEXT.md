@@ -17,6 +17,12 @@ One uploaded, installable binary of a Product, identified by its version code an
 was built from.
 _Avoid_: Artifact, release, binary
 
+**Form factor**:
+The kind of device a Build installs on: `mobile` (phones and tablets) or `wear` (Wear OS watches).
+A run may upload one Build of a Product per Form factor, and an installed Build is only offered
+Builds of its own Form factor.
+_Avoid_: Platform, device type, variant
+
 **Channel**:
 A named stream of Builds of one Product that an installed Build follows for updates.
 _Avoid_: Track, flavor

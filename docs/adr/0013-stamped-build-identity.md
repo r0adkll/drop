@@ -7,7 +7,8 @@ but it costs a read of the whole APK and still cannot tell a local build which C
 
 ## Consequences
 
-A run may upload at most one Build per Product, otherwise the stamp is ambiguous. A second upload
+A run may upload at most one Build per Product and Form factor
+([ADR 0017](0017-builds-have-a-form-factor.md)), otherwise the stamp is ambiguous. A second upload
 from the same run replaces the first while the first is still pending (its files not yet
 confirmed), so a failed upload can be retried. Once confirmed, it is replaced only by a later attempt
 of the run (*Re-run jobs* keeps the run ID and raises `run_attempt`): the Build keeps its ID and
