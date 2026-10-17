@@ -162,6 +162,11 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   framework resources and other drawable types fall back to the `icon` input.
 - resvg-wasm 2.6 ignores WebP images in an SVG, so WebP layers are decoded with `@jsquash/webp` and
   re-encoded as PNG first. Both modules' `.wasm` files are copied into `action/dist/` by the build.
+- A watch APK's badging lists `  uses-feature: name='android.hardware.type.watch'` under its
+  `feature-group`; a feature declared with `required="false"` prints as
+  `uses-feature-not-required` instead, and such an APK is a mobile one. The Action sends
+  `formFactor` only for a watch APK, so mobile uploads still work against a Deployment that
+  predates Form factors (an older server refuses unknown fields).
 - Default Channel: runs on the default branch (push, `workflow_dispatch`, `schedule`) go to `main`,
   `pull_request` runs to `pr/<number>`; any other run must pass `channel`.
 

@@ -13,6 +13,9 @@ turns that section into the release, and its text becomes the GitHub Release's n
   Builds of its own Form factor. Until Wear Builds are designed for, they have a Build page but are
   left out of the site pages, pull request comments, commit comments and webhooks. Deploying runs a
   migration that rebuilds the `builds` and `uploads` tables.
+- Action: uploads a Wear OS APK as a Wear Build, recognising it from the
+  `android.hardware.type.watch` feature it requires. Upload it with a second step in the same job.
+  The Deployment must run this release first.
 
 ## [0.3.1] - 2026-10-17
 

@@ -6,6 +6,8 @@ export interface Badging {
   versionCode: number;
   versionName?: string;
   label?: string;
+  /** `wear` when the APK requires a watch (ADR 0017), `mobile` otherwise. */
+  formFactor: "mobile" | "wear";
   /** Launcher icon paths inside the APK by screen density. */
   icons: { density: number; path: string }[];
 }
@@ -20,6 +22,7 @@ export function parseBadging(output: string): Badging {
   let versionName: string | undefined;
   let label: string | undefined;
   let fallbackLabel: string | undefined;
+  let formFactor: Badging["formFactor"] = "mobile";
   const icons: Badging["icons"] = [];
 
   for (const line of output.split(/\r?\n/)) {
@@ -42,6 +45,11 @@ export function parseBadging(output: string): Badging {
       icons.push({ density: Number(iconMatch[1]), path: unescape(iconMatch[2]!) });
       continue;
     }
+    // A required feature; one declared with required="false" prints as uses-feature-not-required.
+    if (/^\s*uses-feature: name='android\.hardware\.type\.watch'/.test(line)) {
+      formFactor = "wear";
+      continue;
+    }
     if (line.startsWith("application: ")) {
       for (const [, key, raw] of line.matchAll(ATTRIBUTE)) if (key === "label" && raw) fallbackLabel = unescape(raw);
     }
@@ -51,7 +59,7 @@ export function parseBadging(output: string): Badging {
   if (versionCode === undefined || !Number.isInteger(versionCode) || versionCode < 1) {
     throw new Error("aapt2 reported no valid versionCode.");
   }
-  return { packageName, versionCode, versionName, label: label || fallbackLabel, icons };
+  return { packageName, versionCode, versionName, label: label || fallbackLabel, formFactor, icons };
 }
 
 /**

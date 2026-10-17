@@ -38,6 +38,8 @@ async function main(): Promise<void> {
     versionName: badging.versionName,
     label: badging.label,
     signerSha256,
+    // Sent only for Wear, so mobile uploads still work with servers that predate Form factors.
+    ...(badging.formFactor === "wear" ? { formFactor: "wear" as const } : {}),
     apk: { size: statSync(apkPath).size, sha256: await sha256File(apkPath) },
     ...(icon ? { icon: { size: icon.bytes.length, sha256: sha256Bytes(icon.bytes), contentType: icon.contentType } } : {}),
     channel,
@@ -47,13 +49,19 @@ async function main(): Promise<void> {
     ...(releaseNotes ? { releaseNotes } : {}),
   };
   const version = request.versionName ? `${request.versionName} (${request.versionCode})` : `(${request.versionCode})`;
-  core.info(`Uploading ${request.label ?? request.applicationId} ${version} to ${channel}`);
+  const kind = badging.formFactor === "wear" ? "Wear OS " : "";
+  core.info(`Uploading ${kind}${request.label ?? request.applicationId} ${version} to ${channel}`);
 
   const token = await core.getIDToken(server);
 
   const build = await upload(server, token, request, {
     apk: await openAsBlob(apkPath),
     icon: icon ? new Blob([icon.bytes], { type: icon.contentType }) : undefined,
+  }).catch((error: unknown) => {
+    if (error instanceof Error && error.message.includes("formFactor is not a known field")) {
+      throw new Error(`${error.message} This Drop deployment predates Wear OS Builds; upgrade it to upload one.`);
+    }
+    throw error;
   });
   core.setOutput("build-id", build.buildId);
   core.setOutput("build-url", build.buildUrl);

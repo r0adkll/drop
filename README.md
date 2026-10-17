@@ -104,6 +104,18 @@ shown as What's new on the Build page and in the Update sheet.
           notes: ${{ github.event.release.body }}
 ```
 
+A Wear OS app shares its phone app's application ID, so it is the same Product. Upload its APK with a
+second step in the same job; the Action sees from the APK that it is a watch app, and phones and
+watches are each offered only their own Builds
+([ADR 0017](docs/adr/0017-builds-have-a-form-factor.md)):
+
+```yaml
+      - uses: r0adkll/drop/action@v0
+        with:
+          server: https://drop.example.com
+          apk: wear/build/outputs/apk/internal/wear-internal.apk
+```
+
 How the server checks uploads is described in [`docs/design.md`](docs/design.md#upload-authentication).
 
 ## Adding Drop to your app

@@ -20,6 +20,13 @@ describe("parseBadging", () => {
     expect(badging.versionName).toBeUndefined();
   });
 
+  it("tells a watch APK from a mobile one by its required features", () => {
+    expect(parseBadging(fixture("badging-wear.txt")).formFactor).toBe("wear");
+    expect(parseBadging(fixture("badging-bitmap.txt")).formFactor).toBe("mobile");
+    const optional = fixture("badging-bitmap.txt").replace("  uses-feature: name='android.hardware.faketouch'", "  uses-feature-not-required: name='android.hardware.type.watch'");
+    expect(parseBadging(optional).formFactor).toBe("mobile");
+  });
+
   it("rejects output without a package", () => {
     expect(() => parseBadging("ERROR: dump failed")).toThrow(/no package name/);
   });

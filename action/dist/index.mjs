@@ -21194,6 +21194,7 @@ function parseBadging(output) {
   let versionName;
   let label;
   let fallbackLabel;
+  let formFactor = "mobile";
   const icons = [];
   for (const line of output.split(/\r?\n/)) {
     if (line.startsWith("package: ")) {
@@ -21215,6 +21216,10 @@ function parseBadging(output) {
       icons.push({ density: Number(iconMatch[1]), path: unescape(iconMatch[2]) });
       continue;
     }
+    if (/^\s*uses-feature: name='android\.hardware\.type\.watch'/.test(line)) {
+      formFactor = "wear";
+      continue;
+    }
     if (line.startsWith("application: ")) {
       for (const [, key, raw] of line.matchAll(ATTRIBUTE)) if (key === "label" && raw) fallbackLabel = unescape(raw);
     }
@@ -21223,7 +21228,7 @@ function parseBadging(output) {
   if (versionCode === void 0 || !Number.isInteger(versionCode) || versionCode < 1) {
     throw new Error("aapt2 reported no valid versionCode.");
   }
-  return { packageName, versionCode, versionName, label: label || fallbackLabel, icons };
+  return { packageName, versionCode, versionName, label: label || fallbackLabel, formFactor, icons };
 }
 var SIGNER_DIGEST = /^(?:V[\d.]+ )?Signer(?: #\d+)?:?(?: \(minSdkVersion=\d+, maxSdkVersion=(\d+)\))? certificate SHA-256 digest: ([0-9a-fA-F]{64})$/gm;
 function parseSignerDigest(output) {
@@ -23422,6 +23427,8 @@ async function main() {
     versionName: badging.versionName,
     label: badging.label,
     signerSha256,
+    // Sent only for Wear, so mobile uploads still work with servers that predate Form factors.
+    ...badging.formFactor === "wear" ? { formFactor: "wear" } : {},
     apk: { size: statSync(apkPath).size, sha256: await sha256File(apkPath) },
     ...icon ? { icon: { size: icon.bytes.length, sha256: sha256Bytes(icon.bytes), contentType: icon.contentType } } : {},
     channel,
@@ -23431,11 +23438,17 @@ async function main() {
     ...releaseNotes ? { releaseNotes } : {}
   };
   const version = request.versionName ? `${request.versionName} (${request.versionCode})` : `(${request.versionCode})`;
-  info(`Uploading ${request.label ?? request.applicationId} ${version} to ${channel}`);
+  const kind = badging.formFactor === "wear" ? "Wear OS " : "";
+  info(`Uploading ${kind}${request.label ?? request.applicationId} ${version} to ${channel}`);
   const token = await getIDToken(server);
   const build = await upload(server, token, request, {
     apk: await openAsBlob(apkPath),
     icon: icon ? new Blob([icon.bytes], { type: icon.contentType }) : void 0
+  }).catch((error2) => {
+    if (error2 instanceof Error && error2.message.includes("formFactor is not a known field")) {
+      throw new Error(`${error2.message} This Drop deployment predates Wear OS Builds; upgrade it to upload one.`);
+    }
+    throw error2;
   });
   setOutput("build-id", build.buildId);
   setOutput("build-url", build.buildUrl);
