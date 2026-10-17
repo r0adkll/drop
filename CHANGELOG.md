@@ -6,6 +6,12 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Added
+
+- Server: a Wear Build's page shows how to install it on a watch with adb, with commands to copy,
+  and links to the phone Build from the same run, which links back. The pull request comment shows
+  each Product's newest Wear Build as a row under its block.
+
 ## [0.4.0] - 2026-10-17
 
 ### Added

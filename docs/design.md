@@ -83,9 +83,17 @@ It does not configure signing ([ADR 0006](adr/0006-signing-out-of-scope.md)) or 
 - The Update check takes the installed Build's Form factor (`mobile` when absent) and offers only
   Builds of that Form factor; the SDK sends `wear` on a watch. Retention keeps the newest Build of
   each Form factor on every open Channel.
-- Until the Wear surfaces are designed, Wear Builds have their Build page and download, reached
-  from the link the Action prints, but are left out of the site pages, the pull request comment,
-  commit comments and webhooks, which go on describing the mobile Builds.
+- Agreed from the [Wear Builds canvas](https://claude.ai/artifact/WZgJNNsVsYXU51mSCNGKZj):
+  - A Wear Build's page carries a **Wear OS** chip, and in place of the QR panel an *Install on your
+    Wear OS watch* panel: connect the watch with `adb connect`, then a download-and-install pair of
+    commands with **Copy commands** and **Download APK**, and a link to the phone Build from the
+    same run. On a phone, a note says the phone can't install it and links the phone Build, and the
+    pinned bar offers **Copy link for your computer** and **Download APK** instead of Install.
+  - A phone Build's page lists the run's Wear Build as a *Watch app* row in its details.
+  - The pull request comment shows a Product's newest Wear Build as a row under its block, without
+    a QR code, since a phone can't install it.
+- The site pages, commit comments and webhooks still describe mobile Builds only; their Wear design
+  comes in a second pass.
 
 ## Upload authentication
 

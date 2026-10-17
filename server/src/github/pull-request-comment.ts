@@ -44,11 +44,13 @@ export interface CommentContent {
   /** owner/name, for commit and run links. */
   repository: string;
   builds: CommentBuild[];
+  /** The newest Wear Build of each Product, shown as a row under its phone Build (ADR 0017). */
+  watches?: CommentBuild[];
   closed?: CommentClosed;
 }
 
 /** The comment's Markdown. Every value from an upload is escaped; nothing in it can add markup. */
-export function renderPullRequestComment({ baseUrl, repository, builds, closed }: CommentContent): string {
+export function renderPullRequestComment({ baseUrl, repository, builds, watches = [], closed }: CommentContent): string {
   const parts = [COMMENT_MARKER];
   if (closed) {
     const offered = closed.defaultChannel ? `the newest Build on \`${closed.defaultChannel}\`` : "the newest Build on the default Channel";
@@ -57,11 +59,21 @@ export function renderPullRequestComment({ baseUrl, repository, builds, closed }
         `Testers who installed one will be offered ${offered}.`,
     );
   }
-  if (builds.length > 0) {
+  const all = [...builds, ...watches];
+  if (all.length > 0) {
     parts.push("**Install from Drop.** Scan a code with your Android phone, or open its Build page.");
-    const sorted = [...builds].sort((a, b) => name(a).localeCompare(name(b)) || a.applicationId.localeCompare(b.applicationId));
-    parts.push(...sorted.map((build) => buildBlock(baseUrl, repository, build)));
-    const latest = builds.reduce((a, b) => (b.uploadedAt > a.uploadedAt ? b : a));
+    // A block per Product: its phone Build, with its watch Build as a row beneath; a Product with
+    // only a watch Build gets the row alone.
+    const products = [...new Map(all.map((build) => [build.applicationId, build])).values()];
+    const sorted = products.sort((a, b) => name(a).localeCompare(name(b)) || a.applicationId.localeCompare(b.applicationId));
+    parts.push(
+      ...sorted.map(({ applicationId }) => {
+        const phone = builds.find((build) => build.applicationId === applicationId);
+        const watch = watches.find((build) => build.applicationId === applicationId);
+        return phone ? buildBlock(baseUrl, repository, phone, { watch }) : ["<table>", watchRow(baseUrl, watch!), "</table>"].join("\n");
+      }),
+    );
+    const latest = all.reduce((a, b) => (b.uploadedAt > a.uploadedAt ? b : a));
     parts.push(`<sub>Updated at ${formatTime(latest.uploadedAt)} UTC by ${runLink(repository, latest)} · <a href="${DROP_REPOSITORY}">Drop</a></sub>`);
   }
   return `${parts.join("\n\n")}\n`;
@@ -85,7 +97,7 @@ export function renderNoBuildsComment(): string {
  * One Build's block: its QR code beside its name, version, Channel, commit and CI run. A commit
  * comment leaves out the commit, which it is already on.
  */
-export function buildBlock(baseUrl: string, repository: string, build: CommentBuild, { commitLink = true } = {}): string {
+export function buildBlock(baseUrl: string, repository: string, build: CommentBuild, { commitLink = true, watch }: { commitLink?: boolean; watch?: CommentBuild } = {}): string {
   const page = `${baseUrl}/b/${build.id}`;
   const commit = commitLink
     ? ` · commit <a href="https://github.com/${escapePath(repository)}/commit/${escape(build.commitSha)}">${escape(build.commitSha.slice(0, 7))}</a>`
@@ -101,7 +113,20 @@ export function buildBlock(baseUrl: string, repository: string, build: CommentBu
     "<br>",
     `<b><a href="${page}">Open Build page</a></b>`,
     "</td>",
-    "</tr></table>",
+    watch ? `</tr>\n${watchRow(baseUrl, watch)}\n</table>` : "</tr></table>",
+  ].join("\n");
+}
+
+/** A Wear Build's row: no QR code, since a phone can't install it (docs/design.md#form-factors). */
+function watchRow(baseUrl: string, build: CommentBuild): string {
+  return [
+    "<tr>",
+    `<td align="center"><sub>Wear OS</sub></td>`,
+    "<td>",
+    `<b>${escape(name(build))}</b> watch app ${version(build)} · <a href="${baseUrl}/b/${build.id}">Build page</a><br>`,
+    "<sub>Install it on your watch with adb; the Build page has the commands.</sub>",
+    "</td>",
+    "</tr>",
   ].join("\n");
 }
 
@@ -158,11 +183,34 @@ interface IssueComment {
   performed_via_github_app?: { id: number } | null;
 }
 
-/**
- * What the comment should say now, from D1. Undefined when there is nothing to say. It shows mobile
- * Builds only, until Wear Builds have a design of their own (docs/design.md#form-factors).
- */
+/** What the comment should say now, from D1. Undefined when there is nothing to say. */
 export async function commentContent(db: D1Database, baseUrl: string, target: CommentTarget): Promise<CommentContent | undefined> {
+  const [builds, watches] = await Promise.all([newestOnPullRequest(db, target, "mobile"), newestOnPullRequest(db, target, "wear")]);
+  const all = [...builds, ...watches];
+
+  const state = await db
+    .prepare("SELECT closed_at, merged FROM pull_request_comments WHERE repository_id = ? AND pull_request = ?")
+    .bind(target.repositoryId, target.pullRequest)
+    .first<{ closed_at: number | null; merged: number | null }>();
+  let closed: CommentClosed | undefined;
+  if (state?.closed_at != null && all.length > 0) {
+    const defaultChannel = await db
+      .prepare(`SELECT name FROM channels WHERE is_default = 1 AND application_id IN (${all.map(() => "?").join(", ")}) ORDER BY name LIMIT 1`)
+      .bind(...all.map((build) => build.applicationId))
+      .first<{ name: string }>();
+    closed = {
+      merged: state.merged === 1,
+      // Products can keep closed pull requests' Builds for different times; the note gives the first.
+      deleteAt: Math.min(...all.map((build) => state.closed_at! + closedPullRequestHours(build.applicationId) * 3600_000)),
+      defaultChannel: defaultChannel?.name ?? null,
+    };
+  }
+  if (all.length === 0) return undefined;
+  return { baseUrl, repository: target.repository, builds, watches, closed };
+}
+
+/** The newest Build of each of the pull request's Channels, of one Form factor. */
+async function newestOnPullRequest(db: D1Database, target: CommentTarget, formFactor: "mobile" | "wear"): Promise<CommentBuild[]> {
   const { results } = await db
     .prepare(
       `SELECT b.id, b.application_id, b.label, b.version_name, b.version_code, c.name AS channel, b.commit_sha, b.workflow,
@@ -170,16 +218,16 @@ export async function commentContent(db: D1Database, baseUrl: string, target: Co
        FROM channels c
        JOIN products p ON p.application_id = c.application_id
        JOIN builds b ON b.id = (
-         SELECT b2.id FROM builds b2 WHERE b2.channel_id = c.id AND b2.form_factor = 'mobile' AND b2.deleted_at IS NULL
+         SELECT b2.id FROM builds b2 WHERE b2.channel_id = c.id AND b2.form_factor = ? AND b2.deleted_at IS NULL
          ORDER BY b2.run_id DESC, b2.uploaded_at DESC LIMIT 1)
        WHERE p.repository_id = ? AND c.pull_request = ?`,
     )
-    .bind(target.repositoryId, target.pullRequest)
+    .bind(formFactor, target.repositoryId, target.pullRequest)
     .all<{
       id: string; application_id: string; label: string | null; version_name: string | null; version_code: number; channel: string;
       commit_sha: string; workflow: string; run_number: number; run_id: number; uploaded_at: number; has_icon: number;
     }>();
-  const builds: CommentBuild[] = results.map((row) => ({
+  return results.map((row) => ({
     id: row.id,
     applicationId: row.application_id,
     label: row.label,
@@ -193,26 +241,6 @@ export async function commentContent(db: D1Database, baseUrl: string, target: Co
     uploadedAt: row.uploaded_at,
     hasIcon: row.has_icon === 1,
   }));
-
-  const state = await db
-    .prepare("SELECT closed_at, merged FROM pull_request_comments WHERE repository_id = ? AND pull_request = ?")
-    .bind(target.repositoryId, target.pullRequest)
-    .first<{ closed_at: number | null; merged: number | null }>();
-  let closed: CommentClosed | undefined;
-  if (state?.closed_at != null && builds.length > 0) {
-    const defaultChannel = await db
-      .prepare(`SELECT name FROM channels WHERE is_default = 1 AND application_id IN (${builds.map(() => "?").join(", ")}) ORDER BY name LIMIT 1`)
-      .bind(...builds.map((build) => build.applicationId))
-      .first<{ name: string }>();
-    closed = {
-      merged: state.merged === 1,
-      // Products can keep closed pull requests' Builds for different times; the note gives the first.
-      deleteAt: Math.min(...builds.map((build) => state.closed_at! + closedPullRequestHours(build.applicationId) * 3600_000)),
-      defaultChannel: defaultChannel?.name ?? null,
-    };
-  }
-  if (builds.length === 0) return undefined;
-  return { baseUrl, repository: target.repository, builds, closed };
 }
 
 /**

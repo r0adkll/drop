@@ -92,10 +92,10 @@ export function createApp(deps: Dependencies) {
     // Only a Build's first confirmation goes to webhooks; a later attempt of its run posts nothing.
     const isNew = !(await c.env.DB.prepare("SELECT 1 FROM builds WHERE id = ?").bind(buildId).first());
     const uploaded = await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId);
-    // Wear Builds aren't announced until they have a design of their own (docs/design.md#form-factors).
-    const announced = await c.env.DB.prepare("SELECT 1 FROM builds WHERE id = ? AND form_factor = 'mobile'").bind(buildId).first();
-    if (announced) waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
-    if (announced && isNew) {
+    waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
+    // Wear Builds go to webhooks once those have a design of their own (docs/design.md#form-factors).
+    const mobile = await c.env.DB.prepare("SELECT 1 FROM builds WHERE id = ? AND form_factor = 'mobile'").bind(buildId).first();
+    if (mobile && isNew) {
       waitUntil(c)(
         sendBuildWebhooks(c.env as unknown as Record<string, unknown> & { DB: D1Database }, config.url, buildId, { fetch: deps.webhookFetch }).catch((error: unknown) => {
           console.error(`Sending webhooks for Build ${buildId} failed:`, error);
@@ -276,19 +276,20 @@ function pageContentSecurityPolicy(): Promise<string> {
 
 /**
  * Announces a newly confirmed Build: in its pull request's comment on a Pull request channel, with a
- * comment on its commit otherwise (docs/design.md#commit-comments).
+ * comment on its commit otherwise (docs/design.md#commit-comments). Wear Builds appear only in the
+ * pull request comment for now (docs/design.md#form-factors).
  */
 async function announceBuild(deps: Dependencies, env: Env, buildId: string, ownerId: number): Promise<void> {
   const github = deps.github(env);
   if (!github) return;
   const build = await env.DB
     .prepare(
-      `SELECT c.pull_request, p.repository_id, p.repository FROM builds b
+      `SELECT c.pull_request, b.form_factor, p.repository_id, p.repository FROM builds b
        JOIN channels c ON c.id = b.channel_id JOIN products p ON p.application_id = b.application_id WHERE b.id = ?`,
     )
     .bind(buildId)
-    .first<{ pull_request: number | null; repository_id: number; repository: string }>();
-  if (!build) return;
+    .first<{ pull_request: number | null; form_factor: string; repository_id: number; repository: string }>();
+  if (!build || (build.pull_request === null && build.form_factor === "wear")) return;
   const installation = await env.DB.prepare("SELECT id FROM installations WHERE account_id = ?").bind(ownerId).first<{ id: number }>();
   if (!installation) {
     console.warn(`No installation recorded for ${build.repository}'s owner, so its Build can't be announced on GitHub.`);

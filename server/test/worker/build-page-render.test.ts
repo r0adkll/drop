@@ -30,6 +30,8 @@ export function pageBuild(overrides: Partial<PageBuild> = {}): PageBuild {
     hasIcon: true,
     deletedAt: null,
     deletedReason: null,
+    formFactor: "mobile",
+    sibling: null,
     ...overrides,
   };
 }
@@ -63,6 +65,34 @@ describe("the Build page", () => {
     expect(html).toContain('<meta property="og:url" content="https://drop.example.com/b/k7Qm2xPa">');
     expect(html).toContain('<meta name="twitter:card" content="summary">');
     expect(html).not.toContain("A newer Build");
+    expect(html).not.toContain("Watch app");
+  });
+
+  it("links a phone Build to the watch Build from its run", () => {
+    const watch: LinkedBuild = { id: "Wq3eR5tY", name: "Trailhead", versionName: "2.8.0", versionCode: 4127, uploadedAt: UPLOADED, hasIcon: true };
+    const { html } = render({ kind: "available", build: pageBuild({ sibling: watch }), newer: null, kept: { kind: "while_newest" } });
+    expect(html).toContain('<dt>Watch app</dt><dd><a href="/b/Wq3eR5tY">2.8.0 (4127)</a> <span class="muted">· Wear OS Build from this run</span></dd>');
+  });
+
+  it("gives a Wear Build adb steps instead of a QR code and an Install button", () => {
+    const phone: LinkedBuild = { id: "k7Qm2xPa", name: "Trailhead", versionName: "2.8.0", versionCode: 4127, uploadedAt: UPLOADED, hasIcon: true };
+    const build = pageBuild({ id: "Wq3eR5tY", formFactor: "wear", sibling: phone, fileSize: 9_812_345 });
+    const { html } = render({ kind: "available", build, newer: null, kept: { kind: "while_newest" } });
+    expect(html).toContain('<span class="chip wear">Wear OS</span><span class="chip">pr/142</span>');
+    expect(html).toContain('<p class="label">Install on your Wear OS watch</p>');
+    expect(html).toContain('<pre class="cmd">adb connect &lt;address on your watch&gt;</pre>');
+    expect(html).toContain(
+      '<pre class="cmd" id="watch-commands">curl -fLo trailhead-wear.apk https://drop.example.com/b/Wq3eR5tY/download\nadb install -r trailhead-wear.apk</pre>',
+    );
+    expect(html).toContain('data-copy="watch-commands"');
+    expect(html).toContain('<a class="sibling" href="/b/k7Qm2xPa">');
+    expect(html).toContain("<b>This is the watch app.</b> Your phone can’t install it.");
+    expect(html).toContain('<p><a href="/b/k7Qm2xPa">Open the phone app from this run</a></p>');
+    expect(html).toContain("Download APK · 9.8 MB");
+    expect(html).toContain('<meta property="og:title" content="Trailhead 2.8.0 (4127) for Wear OS">');
+    expect(html).not.toContain('<div class="qr">');
+    expect(html).not.toContain("Install · ");
+    expect(html).not.toContain("<dt>Watch app</dt>");
   });
 
   it("falls back to the commit message, then the app name, as the headline", () => {

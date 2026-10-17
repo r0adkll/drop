@@ -26,9 +26,12 @@ export interface PageBuild {
   deletedAt: number | null;
   /** Why it was deleted: by retention, or removed by the Deployment's operator. */
   deletedReason: "retention" | "operator" | null;
+  formFactor: "mobile" | "wear";
+  /** The run's Build of the other Form factor, while it is available (ADR 0017). */
+  sibling: LinkedBuild | null;
 }
 
-/** Another Build a page links to: the newest of a Channel. */
+/** Another Build a page links to: the newest of a Channel, or the run's other Form factor. */
 export interface LinkedBuild {
   id: string;
   name: string;
@@ -66,7 +69,7 @@ interface BuildRow {
   version_code: number;
   repository: string;
   repository_visibility: string;
-  form_factor: string;
+  form_factor: "mobile" | "wear";
   channel_id: number;
   channel_name: string;
   pull_request: number | null;
@@ -111,6 +114,10 @@ function displayName(applicationId: string, label: string | null): string {
 }
 
 // The newest Build of a Channel and Form factor (ADR 0017).
+// The same run's Build of the other Form factor (ADR 0017).
+const SIBLING = `SELECT id, application_id, label, version_name, version_code, uploaded_at, icon_key FROM builds
+  WHERE application_id = ? AND run_id = ? AND form_factor != ? AND deleted_at IS NULL LIMIT 1`;
+
 const NEWEST = `SELECT id, application_id, label, version_name, version_code, uploaded_at, icon_key FROM builds
   WHERE channel_id = ? AND form_factor = ? AND deleted_at IS NULL ORDER BY run_id DESC, uploaded_at DESC LIMIT 1`;
 
@@ -165,6 +172,8 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
     hasIcon: hasIcon(row.application_id, row.icon_key),
     deletedAt: row.deleted_at,
     deletedReason: row.deleted_reason,
+    formFactor: row.form_factor,
+    sibling: linked(await db.prepare(SIBLING).bind(row.application_id, row.run_id, row.form_factor).first<LinkedRow>()),
   };
   const newest = linked(await db.prepare(NEWEST).bind(row.channel_id, row.form_factor).first<LinkedRow>());
 

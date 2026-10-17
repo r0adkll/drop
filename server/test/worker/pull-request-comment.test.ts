@@ -42,6 +42,25 @@ describe("renderPullRequestComment", () => {
     );
   });
 
+  it("puts a Product's watch Build in a row under its phone Build, or alone without one", () => {
+    const watch: CommentBuild = { ...trailhead, id: "Wq3eR5tY", versionCode: 4128, uploadedAt: NOW + 60_000 };
+    const row = `<tr>
+<td align="center"><sub>Wear OS</sub></td>
+<td>
+<b>Trailhead</b> watch app 2.8.0 (4128) · <a href="https://drop.example.com/b/Wq3eR5tY">Build page</a><br>
+<sub>Install it on your watch with adb; the Build page has the commands.</sub>
+</td>
+</tr>`;
+    const both = renderPullRequestComment({ baseUrl: BASE, repository: "your-org/trailhead", builds: [trailhead], watches: [watch] });
+    expect(both).toContain(`<b><a href="https://drop.example.com/b/k7Qm2xPa">Open Build page</a></b>\n</td>\n</tr>\n${row}\n</table>`);
+    expect(both).not.toContain("Wq3eR5tY/qr.svg");
+    expect(both).toContain("<sub>Updated at 14:03 UTC");
+
+    const alone = renderPullRequestComment({ baseUrl: BASE, repository: "your-org/trailhead", builds: [], watches: [watch] });
+    expect(alone).toContain(`<table>\n${row}\n</table>`);
+    expect(alone).not.toContain("qr.svg");
+  });
+
   it("orders Products by name and credits the latest run", () => {
     const admin: CommentBuild = { ...trailhead, id: "Rt4wN8cZ", applicationId: "com.example.admin", label: "Admin", hasIcon: false, versionName: null, versionCode: 212, runNumber: 1877, runId: 11384729999, uploadedAt: NOW + 5 * 60_000 };
     const body = renderPullRequestComment({ baseUrl: BASE, repository: "your-org/trailhead", builds: [trailhead, admin] });
@@ -189,8 +208,8 @@ describe("pull request comments from uploads and webhooks", () => {
     ...overrides,
   });
 
-  async function uploadToPullRequest(s: Awaited<ReturnType<typeof setup>>, applicationId = uniqueApplicationId()) {
-    const created = await post(s, "/api/v1/uploads", uploadRequest(applicationId, { channel: `pr/${s.pullRequest}`, defaultBranch: false, apk: { size: 4, sha256: "b".repeat(64) } }));
+  async function uploadToPullRequest(s: Awaited<ReturnType<typeof setup>>, applicationId = uniqueApplicationId(), overrides: Record<string, unknown> = {}) {
+    const created = await post(s, "/api/v1/uploads", uploadRequest(applicationId, { channel: `pr/${s.pullRequest}`, defaultBranch: false, apk: { size: 4, sha256: "b".repeat(64) }, ...overrides }));
     const { buildId } = (await created.json()) as { buildId: string };
     await env.BUILDS.put(`builds/${buildId}/1/app.apk`, apk);
     expect((await post(s, `/api/v1/uploads/${buildId}/complete`, undefined)).status).toBe(200);
@@ -202,6 +221,17 @@ describe("pull request comments from uploads and webhooks", () => {
     const buildId = await uploadToPullRequest(s);
     await vi.waitFor(() => expect(s.comments()[0]?.body).toContain(`/b/${buildId}/qr.svg`));
     expect(s.github.calls.at(-1)!.authorization).toBe(`token tok-${s.installationId}-1`);
+  });
+
+  it("adds a watch Build to its Product's block", async () => {
+    const s = await setup();
+    const applicationId = uniqueApplicationId();
+    const phone = await uploadToPullRequest(s, applicationId);
+    await vi.waitFor(() => expect(s.comments()[0]?.body).toContain(`/b/${phone}/qr.svg`));
+    const watch = await uploadToPullRequest(s, applicationId, { formFactor: "wear" });
+    await vi.waitFor(() => expect(s.comments()[0]?.body).toContain(`<a href="https://drop.example.com/b/${watch}">Build page</a>`));
+    expect(s.comments()).toHaveLength(1);
+    expect(s.comments()[0]!.body).not.toContain(`/b/${watch}/qr.svg`);
   });
 
   it("ends the Channel and notes the deletion when the pull request closes", async () => {

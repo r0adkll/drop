@@ -40,7 +40,9 @@ function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, 
   const download = `/b/${build.id}/download`;
   const { headline, commitLine, whatsNew } = headlineOf(build);
   const ended = build.channel.endedAt !== null;
+  const wear = build.formFactor === "wear";
   const chips =
+    wearChip(build) +
     `<span class="chip">${esc(build.channel.name)}</span>` +
     (ended ? `<span class="chip">Ended</span>` : newer === null ? `<span class="chip new">Newest on ${esc(build.channel.name)}</span>` : "");
 
@@ -59,38 +61,44 @@ function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, 
     ["Size", esc(formatSize(build.fileSize))],
     ["Kept", keptText(build, kept)],
   );
+  if (!wear && build.sibling) {
+    facts.push(["Watch app", `<a href="/b/${esc(build.sibling.id)}">${esc(version(build.sibling))}</a> <span class="muted">· Wear OS Build from this run</span>`]);
+  }
 
-  const help =
-    `<div class="help phone-only"><p><b>First install from Drop?</b> Tap Install, then open the downloaded file. ` +
+  const help = wear
+    ? `<div class="banner phone-only" role="note"><p><b>This is the watch app.</b> Your phone can’t install it. Install it on your ` +
+      `watch from a computer with adb; this page’s link works there too.</p>` +
+      (build.sibling ? `<p><a href="/b/${esc(build.sibling.id)}">Open the phone app from this run</a></p>` : "") +
+      `</div>`
+    : `<div class="help phone-only"><p><b>First install from Drop?</b> Tap Install, then open the downloaded file. ` +
     `Android asks you to allow installs from this browser once.</p>` +
     `<p><b>“App not installed”?</b> The copy on your phone was signed with a different key. Uninstall it, then install this Build.</p></div>`;
 
-  const qrPanel =
-    `<aside class="panel qr-panel" aria-label="Install on your Android phone"><p class="label">Install on your Android phone</p>` +
-    `<div class="qr">${qrSvg(url)}</div>` +
-    `<ol class="steps"><li>Scan the code with your phone’s camera.</li><li>Tap Install on the page that opens.</li>` +
-    `<li>If Android asks, allow installs from your browser. It only asks once.</li></ol>` +
-    `<div class="btns"><a class="btn quiet" href="${download}">Download APK</a>` +
-    `<button class="btn quiet" type="button" id="copy-link" hidden>Copy link</button></div>` +
-    `<input class="copy-field" id="copy-field" type="text" readonly value="${esc(url)}" aria-label="Build page link" hidden></aside>`;
+  const installPanel = wear ? watchPanel(build, url, download) : qrPanel(url, download);
+  const installBar = wear
+    ? `<div class="install-bar phone-only"><div class="bar-btns"><button class="btn quiet" type="button" data-copy="bar-copy-field" hidden>Copy link for your computer</button>` +
+      `<a class="btn quiet" href="${download}">Download APK · ${esc(formatSize(build.fileSize))}</a></div>` +
+      `<input class="copy-field" id="bar-copy-field" type="text" readonly value="${esc(url)}" aria-label="Build page link" hidden></div>`
+    : `<div class="install-bar phone-only"><a class="btn primary" href="${download}">${DOWNLOAD_ICON}Install · ${esc(formatSize(build.fileSize))}</a></div>`;
 
   const body =
     `<header class="head"><div class="wrap">${banner}${appRow(build, chips)}` +
     `<div class="hero"><h1>${esc(headline)}</h1>${commitLine ?? ""}</div></div></header>` +
-    `<main class="wrap body"><section class="details" aria-labelledby="about">` +
+    `<main class="wrap body${wear ? " watch" : ""}"><section class="details" aria-labelledby="about">` +
     (whatsNew
       ? `<section class="notes" aria-labelledby="whats-new"><h2 class="label" id="whats-new">What’s new</h2>` +
         `<p class="notes-text">${linkified(whatsNew)}</p></section>`
       : "") +
-    `<h2 class="label" id="about">About this Build</h2>${dl(facts)}${help}${technical(build)}</section>${qrPanel}</main>` +
+    `<h2 class="label" id="about">About this Build</h2>${dl(facts)}${help}${technical(build)}</section>${installPanel}</main>` +
     footer(ctx) +
-    `<div class="install-bar phone-only"><a class="btn primary" href="${download}">${DOWNLOAD_ICON}Install · ${esc(formatSize(build.fileSize))}</a></div>`;
+    installBar;
 
+  const forWear = wear ? " for Wear OS" : "";
   return document(
     {
-      title: `${build.name} ${version(build)} · ${build.channel.name}`,
+      title: `${build.name} ${version(build)}${forWear} · ${build.channel.name}`,
       description: `${headline} · ${build.channel.name}`,
-      ogTitle: `${build.name} ${version(build)}`,
+      ogTitle: `${build.name} ${version(build)}${forWear}`,
       url,
       image: build.hasIcon ? `${ctx.baseUrl}/b/${build.id}/icon` : null,
     },
@@ -98,10 +106,47 @@ function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, 
   );
 }
 
+function qrPanel(url: string, download: string): string {
+  return (
+    `<aside class="panel qr-panel" aria-label="Install on your Android phone"><p class="label">Install on your Android phone</p>` +
+    `<div class="qr">${qrSvg(url)}</div>` +
+    `<ol class="steps"><li>Scan the code with your phone’s camera.</li><li>Tap Install on the page that opens.</li>` +
+    `<li>If Android asks, allow installs from your browser. It only asks once.</li></ol>` +
+    `<div class="btns"><a class="btn quiet" href="${download}">Download APK</a>` +
+    `<button class="btn quiet" type="button" id="copy-link" data-copy="copy-field" hidden>Copy link</button></div>` +
+    `<input class="copy-field" id="copy-field" type="text" readonly value="${esc(url)}" aria-label="Build page link" hidden></aside>`
+  );
+}
+
+/** Wear OS: Builds a watch installs over adb from a computer, since a phone can't install them (docs/design.md#form-factors). */
+function watchPanel(build: PageBuild, url: string, download: string): string {
+  const file = `${build.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "app"}-wear.apk`;
+  // One line each, so a paste runs them whatever the shell; the panel wraps them for show.
+  const commands = `curl -fLo ${file} ${url}/download\nadb install -r ${file}`;
+  const sibling = build.sibling
+    ? `<a class="sibling" href="/b/${esc(build.sibling.id)}">${icon(build.sibling.hasIcon ? `/b/${build.sibling.id}/icon` : null, false)}` +
+      `<span><span class="small">Phone app from this run</span><span class="sibling-name">${esc(build.sibling.name)} ${esc(version(build.sibling))}</span></span></a>`
+    : "";
+  return (
+    `<aside class="panel qr-panel" aria-label="Install on your Wear OS watch"><p class="label">Install on your Wear OS watch</p>` +
+    `<p>This is the watch app. Install it from a computer with adb.</p>` +
+    `<ol class="steps watch-steps"><li><p>Connect your watch. Turn on Wireless debugging in its Developer options (the first time, ` +
+    `<a href="${ADB_PAIRING_DOCS}">pair it</a>), then connect to the address it shows:</p>` +
+    `<pre class="cmd">adb connect &lt;address on your watch&gt;</pre></li>` +
+    `<li><p>Download the APK and install it:</p><pre class="cmd" id="watch-commands">${esc(commands)}</pre>` +
+    `<div class="btns"><button class="btn quiet" type="button" data-copy="watch-commands" hidden>Copy commands</button>` +
+    `<a class="btn quiet" href="${download}">Download APK</a></div></li></ol>${sibling}</aside>`
+  );
+}
+
+function wearChip(build: PageBuild): string {
+  return build.formFactor === "wear" ? `<span class="chip wear">Wear OS</span>` : "";
+}
+
 function expiredPage(build: PageBuild, next: Extract<BuildPageModel, { kind: "expired" }>["next"], ctx: RenderContext): string {
   const channel = build.channel.name;
   const removed = build.deletedReason === "operator";
-  const chips = `<span class="chip">${esc(channel)}</span><span class="chip">${removed ? "Removed" : "Expired"}</span>`;
+  const chips = `${wearChip(build)}<span class="chip">${esc(channel)}</span><span class="chip">${removed ? "Removed" : "Expired"}</span>`;
 
   let explanation: string;
   if (removed) {
@@ -382,6 +427,8 @@ export function esc(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+const ADB_PAIRING_DOCS = "https://developer.android.com/training/wearables/get-started/debugging";
+
 const DOWNLOAD_ICON =
   `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ` +
   `stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>`;
@@ -414,15 +461,21 @@ export const PAGE_SCRIPT = `(() => {
       t.after(span);
     }
   }
-  const copy = document.getElementById("copy-link"), field = document.getElementById("copy-field");
-  if (copy && field) {
-    copy.hidden = false;
-    copy.addEventListener("click", () => {
-      const fallback = () => { field.hidden = false; field.select(); };
+  for (const button of document.querySelectorAll("button[data-copy]")) {
+    const source = document.getElementById(button.getAttribute("data-copy"));
+    if (!source) continue;
+    const label = button.textContent;
+    button.hidden = false;
+    button.addEventListener("click", () => {
+      const field = source instanceof HTMLInputElement;
+      const fallback = () => {
+        source.hidden = false;
+        if (field) source.select(); else getSelection().selectAllChildren(source);
+      };
       if (!navigator.clipboard) return fallback();
-      navigator.clipboard.writeText(field.value).then(() => {
-        copy.textContent = "Copied";
-        setTimeout(() => { copy.textContent = "Copy link"; }, 1600);
+      navigator.clipboard.writeText(field ? source.value : source.textContent).then(() => {
+        button.textContent = "Copied";
+        setTimeout(() => { button.textContent = label; }, 1600);
       }, fallback);
     });
   }
@@ -457,6 +510,7 @@ a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible{o
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{font-family:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;font-size:12.5px;line-height:1.2;padding:4px 9px;border-radius:999px;background:var(--chip);color:var(--fg)}
 .chip.new{background:var(--accent-soft);color:var(--accent-text)}
+.chip.wear{background:var(--info-bg);color:var(--info-fg)}
 .hero{display:grid;gap:10px;max-width:46rem;min-width:0}
 h1{margin:0;font-size:32px;line-height:1.15;letter-spacing:-.01em;font-weight:700;text-wrap:balance;overflow-wrap:anywhere}
 .lede{margin:0;color:var(--muted);max-width:40rem}
@@ -479,6 +533,14 @@ h1{margin:0;font-size:32px;line-height:1.15;letter-spacing:-.01em;font-weight:70
 .qr{justify-self:center;background:var(--qr-bg);border:1px solid var(--line);border-radius:14px;padding:12px;line-height:0}
 .qr svg{display:block;width:200px;height:200px}
 .steps{margin:0;padding-left:20px;display:grid;gap:6px}
+.watch-steps{gap:14px}
+.watch-steps li>*+*{margin-top:8px}
+.watch-steps p{margin:0}
+.body.watch{grid-template-columns:minmax(0,1fr) 400px}
+.cmd{margin:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-family:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;font-size:12.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.sibling{display:flex;gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:16px;color:var(--fg);text-decoration:none}
+.sibling .icon{width:32px;height:32px}
+.sibling .small,.sibling-name{display:block}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:14px 18px;font:inherit;font-size:16px;font-weight:600;text-decoration:none;cursor:pointer}
 .btn.primary{background:var(--accent);color:var(--on-accent)}
@@ -501,13 +563,14 @@ body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 .wrap{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
 .head .wrap{padding-block:18px 20px;gap:16px}
 h1{font-size:22px}
-.body{grid-template-columns:minmax(0,1fr);gap:18px;padding-block:18px 20px}
+.body,.body.watch{grid-template-columns:minmax(0,1fr);gap:18px;padding-block:18px 20px}
 .qr-panel{display:none}
 .next-panel{order:-1}
-.help.phone-only{display:grid}
+.help.phone-only,.banner.phone-only{display:grid}
 .install-bar.phone-only{display:block;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);
 padding:12px max(16px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
-.install-bar .btn{width:100%}}
+.install-bar .btn{width:100%}
+.bar-btns{display:grid;gap:8px}}
 .crumbs{font-size:13px;color:var(--muted);margin:0}
 .brand{display:flex;align-items:center;gap:18px;min-width:0}
 .brand .logo{flex:none}

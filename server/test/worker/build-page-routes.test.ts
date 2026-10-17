@@ -31,6 +31,21 @@ describe("GET /b/{buildId}", () => {
     expect(html).toMatch(/<footer class="wrap foot"><span class="mark" aria-hidden="true"><svg [^]*<\/svg><\/span>Served by Drop · drop\.example\.com<\/footer>/);
   });
 
+  it("links the phone and watch Builds of one run, each newest within its Form factor", async () => {
+    const { app } = await createTestApp();
+    const phone = await seedBuild({ runId: 500 });
+    const watch = await seedBuild({ applicationId: phone.applicationId, runId: 500, formFactor: "wear" });
+    await seedBuild({ applicationId: phone.applicationId, runId: 499, formFactor: "wear" });
+    const page = async (id: string) => (await app.request(`/b/${id}`, {}, env)).text();
+
+    const phoneHtml = await page(phone.id);
+    expect(phoneHtml).toContain(`<dt>Watch app</dt><dd><a href="/b/${watch.id}">`);
+    const watchHtml = await page(watch.id);
+    expect(watchHtml).toContain('<span class="chip wear">Wear OS</span>');
+    expect(watchHtml).toContain(`<a class="sibling" href="/b/${phone.id}">`);
+    expect(watchHtml).toContain("Newest on main");
+  });
+
   it("marks an older Build as superseded by the Channel's newest", async () => {
     const { app } = await createTestApp();
     const older = await seedBuild({ channel: "pr/7", runId: 100 });
