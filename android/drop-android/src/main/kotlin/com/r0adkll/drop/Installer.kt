@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.content.pm.PackageManager
 import android.os.Build
 import java.io.File
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,13 +27,37 @@ internal object InstallResults {
 }
 
 /**
- * Installs an APK through a PackageInstaller session. Android then asks the Tester to confirm,
- * which it can show only while the app is in the foreground (docs/implementation-notes.md#android).
+ * Whether an update to the app itself installs without the Tester's confirmation: on a watch from
+ * Android 12, for an app targeting a recent enough SDK. Phones keep Android's confirmation
+ * (docs/design.md#sdk).
+ */
+internal fun installsWithoutConfirmation(context: Context): Boolean {
+  if (Build.VERSION.SDK_INT < 31 || !context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) return false
+  val minimumTarget = when (Build.VERSION.SDK_INT) {
+    31, 32 -> 29
+    33 -> 30
+    34 -> 31
+    else -> Build.VERSION.SDK_INT - 2
+  }
+  return context.applicationInfo.targetSdkVersion >= minimumTarget
+}
+
+/**
+ * Installs an APK, an update to the app itself, through a PackageInstaller session. Where Android
+ * asks the Tester to confirm, which it can show only while the app is in the foreground, the
+ * receiver shows it (docs/implementation-notes.md#android).
  */
 internal fun installApk(context: Context, apk: File) {
   val installer = context.packageManager.packageInstaller
   val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
     setSize(apk.length())
+    // An APK of any other package fails the session rather than installing beside the app.
+    setAppPackageName(context.packageName)
+    if (Build.VERSION.SDK_INT >= 31) {
+      setRequireUserAction(
+        if (installsWithoutConfirmation(context)) PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED else PackageInstaller.SessionParams.USER_ACTION_REQUIRED,
+      )
+    }
   }
   val sessionId = installer.createSession(params)
   installer.openSession(sessionId).use { session ->

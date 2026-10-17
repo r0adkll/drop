@@ -32,6 +32,8 @@ public class Drop(context: Context, config: DropConfig) {
     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
+  public fun asksToConfirmInstall(): Boolean = true
+
   public fun install(): Boolean = false
 
   public fun reset() {}

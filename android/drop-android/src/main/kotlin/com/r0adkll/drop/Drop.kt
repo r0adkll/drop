@@ -3,6 +3,7 @@ package com.r0adkll.drop
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
 import io.ktor.client.engine.okhttp.OkHttp
@@ -107,14 +108,29 @@ public class Drop(context: Context, private val config: DropConfig) {
   /** Whether Android lets this app install packages; if not, send the Tester to [installPermissionIntent]. */
   public fun canInstall(): Boolean = app.packageManager.canRequestPackageInstalls()
 
-  /** Opens *Install unknown apps* for this app. */
-  public fun installPermissionIntent(): Intent =
-    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${app.packageName}"))
-      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+  /**
+   * Opens *Install unknown apps* for this app. On a watch it opens the app's App info instead, where
+   * the switch is under Advanced: Wear OS takes the direct link only to the top of Settings, and
+   * brings back an open Settings where it last was unless its task is cleared.
+   */
+  public fun installPermissionIntent(): Intent {
+    val uri = Uri.parse("package:${app.packageName}")
+    return if (app.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
+      Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    } else {
+      Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+  }
+
+  /**
+   * Whether Android asks the Tester to confirm [install]. It does on a phone; on a Wear OS watch,
+   * from Android 12, the update installs without asking.
+   */
+  public fun asksToConfirmInstall(): Boolean = !installsWithoutConfirmation(app)
 
   /**
    * Installs the downloaded Update. Call it while the app is in the foreground: Android shows its
-   * install confirmation only then. Returns false when there is nothing ready to install or the app
+   * install confirmation ([asksToConfirmInstall]) only then. Returns false when there is nothing ready to install or the app
    * may not install packages yet ([canInstall]).
    */
   public fun install(): Boolean {

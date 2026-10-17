@@ -109,8 +109,8 @@ internal fun DropUpdateSheetContent(drop: Drop, onDismiss: () -> Unit) {
         else -> Offer(current.update, onUpdate = { start(current.update) }, onDismiss = onDismiss)
       }
       is DropState.Downloading -> Downloading(current, onHide = onDismiss, onCancel = { drop.reset(); onDismiss() })
-      is DropState.ReadyToInstall -> Ready(current.update, installing = false, onInstall = { drop.install() }, onLater = onDismiss)
-      is DropState.Installing -> Ready(current.update, installing = true, onInstall = {}, onLater = onDismiss)
+      is DropState.ReadyToInstall -> Ready(current.update, drop.asksToConfirmInstall(), installing = false, onInstall = { drop.install() }, onLater = onDismiss)
+      is DropState.Installing -> Ready(current.update, drop.asksToConfirmInstall(), installing = true, onInstall = {}, onLater = onDismiss)
       is DropState.Failed -> Failed(
         current,
         onTryAgain = {
@@ -256,7 +256,7 @@ private fun Downloading(state: DropState.Downloading, onHide: () -> Unit, onCanc
 }
 
 @Composable
-private fun Ready(update: Update, installing: Boolean, onInstall: () -> Unit, onLater: () -> Unit) {
+private fun Ready(update: Update, asksToConfirm: Boolean, installing: Boolean, onInstall: () -> Unit, onLater: () -> Unit) {
   val context = LocalContext.current
   Header(stringResource(R.string.drop_ready_title), stringResource(R.string.drop_ready_subtitle, versionOf(update)))
   Column(
@@ -265,9 +265,15 @@ private fun Ready(update: Update, installing: Boolean, onInstall: () -> Unit, on
   ) {
     val color = MaterialTheme.colorScheme.onSecondaryContainer
     Text(stringResource(R.string.drop_ready_next), style = MaterialTheme.typography.titleSmall, color = color)
-    Text("1. " + stringResource(R.string.drop_ready_step_confirm), style = MaterialTheme.typography.bodyMedium, color = color)
-    Text("2. " + stringResource(R.string.drop_ready_step_play_protect), style = MaterialTheme.typography.bodyMedium, color = color)
-    Text("3. " + stringResource(R.string.drop_ready_step_reopen, appLabel(context)), style = MaterialTheme.typography.bodyMedium, color = color)
+    // Android's confirmation is a step only where it asks (Drop.asksToConfirmInstall).
+    val steps = listOfNotNull(
+      stringResource(R.string.drop_ready_step_confirm).takeIf { asksToConfirm },
+      stringResource(R.string.drop_ready_step_play_protect),
+      stringResource(R.string.drop_ready_step_reopen, appLabel(context)),
+    )
+    steps.forEachIndexed { index, step ->
+      Text("${index + 1}. $step", style = MaterialTheme.typography.bodyMedium, color = color)
+    }
   }
   Actions(
     primary = stringResource(if (installing) R.string.drop_installing else R.string.drop_install),

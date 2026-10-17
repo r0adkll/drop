@@ -194,10 +194,28 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   later install signed with the same key, so choosing *Install anyway* once doesn't stop it; the
   Update sheet prepares Testers for it before every install.
 - *Install unknown apps* is granted in Settings, outside the app, so read
-  `canRequestPackageInstalls()` again when the app resumes.
-- Expect Android's install confirmation on every update: prompt-free updates
-  (`setRequireUserAction`, Android 12+) need the updating app to be the installer of record, and
-  apps installed from a browser are not.
+  `canRequestPackageInstalls()` again when the app resumes. On Wear OS (Pixel Watch 3, API 37)
+  `ACTION_MANAGE_UNKNOWN_APP_SOURCES` opens only the top of Settings; the switch is under the app's
+  App info › Advanced, so on a watch the SDK opens `ACTION_APPLICATION_DETAILS_SETTINGS` instead.
+  With Settings already open, a plain `FLAG_ACTIVITY_NEW_TASK` only brings its task back where it
+  last was ("Activity not started, its current task has been brought to the front"); adding
+  `FLAG_ACTIVITY_CLEAR_TASK` opens the requested page.
+- An app updating itself may skip Android's install confirmation (Android 12+): the session sets
+  `setRequireUserAction(USER_ACTION_NOT_REQUIRED)`, the app declares
+  `UPDATE_PACKAGES_WITHOUT_USER_ACTION` and has *Install unknown apps*, and it targets a recent
+  enough SDK (29+ on Android 12, 30+ on 13, 31+ on 14, 33+ on 15, 34+ on 16, 35+ on 17). Being the
+  installer of record isn't needed: "updating itself" qualifies on its own. Where any condition
+  fails, Android still answers `STATUS_PENDING_USER_ACTION` and shows its confirmation.
+  `setAppPackageName` makes an APK of any other package fail the session. Seen on an API 37 phone
+  emulator with Play services (2026-10-17), with the app installed from Chrome: no confirmation,
+  but Play Protect still showed its "App blocked" dialog for the unseen key (above), and the
+  install finished once the Tester chose *Install anyway*; the app then became its own installer
+  of record. The SDK skips the confirmation only on a watch and asks for it (`USER_ACTION_REQUIRED`)
+  on phones. On Wear OS (a Wear OS 6 emulator and a Pixel Watch 3, API 37) Play Protect skips
+  verification ("Skipping verification. Wear device"), so the update goes in with no prompt at
+  all, from the foreground or the background.
+- Installing an update kills the app's process, so the session's result never reaches it. The SDK
+  learns the update went in from `lastUpdateTime` on the next launch.
 
 ## SDK
 

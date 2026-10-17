@@ -11,6 +11,10 @@ turns that section into the release, and its text becomes the GitHub Release's n
 - Server: a Wear Build's page shows how to install it on a watch with adb, with commands to copy,
   and links to the phone Build from the same run, which links back. The pull request comment shows
   each Product's newest Wear Build as a row under its block.
+- SDK: on a Wear OS watch (Android 12+), an Update installs without Android's confirmation, and
+  `installPermissionIntent()` opens the app's App info, where *Install unknown apps* is under
+  Advanced. `Drop.asksToConfirmInstall()` says whether Android will ask, and the Update sheet
+  leaves out the confirmation step where it won't. Phones still confirm every update.
 
 ## [0.4.0] - 2026-10-17
 

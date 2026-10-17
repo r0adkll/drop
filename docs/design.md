@@ -231,7 +231,10 @@ cached.
   shows its own hints (a badge, a banner, a settings row), and asks the SDK to show the Update
   sheet when the Tester wants to act.
 - Downloads with Android's `DownloadManager`, so downloads survive the app being backgrounded or
-  killed, verifies the SHA-256, then installs through a `PackageInstaller` session. The first
+  killed, verifies the SHA-256, then installs through a `PackageInstaller` session as an update to
+  the app itself. On a Wear OS watch, from Android 12, it installs without asking the Tester to
+  confirm; phones keep Android's confirmation, since Play Protect still stops an unseen signing key
+  there and the Tester is better off expecting a prompt (see the implementation notes). The first
   install sends the Tester to *Install unknown apps* for the app. Download URLs stay valid for an
   hour so interrupted downloads can resume.
 - No forced updates in milestone 1.
@@ -264,8 +267,8 @@ Agreed from the mockups on the [Update sheet canvas](https://claude.ai/artifact/
   sheet carries on when the app resumes), then downloads, so the only wait comes after every
   detour. Downloading shows progress; **Hide** closes the sheet while the download carries on, and
   **Cancel download** deletes it.
-- Ready to install explains what happens next before every install: Android's confirmation, then,
-  for a signing key Play Protect hasn't seen, its "App blocked" warning and **More details →
+- Ready to install explains what happens next before every install: Android's confirmation, as
+  a step only where Android asks (not on a watch), then, for a signing key Play Protect hasn't seen, its "App blocked" warning and **More details →
   Install anyway**, then that the app closes and is opened again from the home screen (Android
   doesn't relaunch an updated app). A cancelled install offers **Try again** without downloading
   again, or removing the download.
