@@ -6,6 +6,11 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Changed
+
+- Gradle plugin: declares support for the Configuration Cache and Isolated Projects, which the Gradle
+  Plugin Portal shows on its page.
+
 ## [0.3.0] - 2026-10-16
 
 ### Added

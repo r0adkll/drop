@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.plugin.compatibility.compatibility
 
 plugins {
   `kotlin-dsl`
@@ -29,6 +30,12 @@ gradlePlugin {
       displayName = "Drop"
       description = "Wires the Drop SDK into an Android app: the real SDK or a no-op per variant, its config and its Stamp."
       tags = listOf("android", "distribution", "updates")
+      compatibility {
+        features {
+          configurationCache = true
+          isolatedProjects = true
+        }
+      }
     }
   }
 }
