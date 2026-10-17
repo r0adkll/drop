@@ -6,6 +6,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-17
+
 ### Added
 
 - Server: Builds have a Form factor, `mobile` or `wear`, so a run can upload a Wear OS APK beside
