@@ -6,6 +6,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-17
+
 ### Changed
 
 - Gradle plugin: declares support for the Configuration Cache and Isolated Projects, which the Gradle
