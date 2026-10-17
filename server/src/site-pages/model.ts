@@ -78,6 +78,9 @@ interface BuildRow {
   icon_key: string | null;
 }
 
+// Site pages list mobile Builds only, until Wear Builds have a design of their own (docs/design.md#form-factors).
+const LISTED = "b.form_factor = 'mobile'";
+
 const BUILD_COLUMNS = `b.id, b.label, b.version_name, b.version_code, b.uploaded_at, b.file_size, b.commit_sha, b.commit_message,
   b.pull_request_title, b.release_notes, b.workflow, b.run_number, b.run_id, b.icon_key`;
 
@@ -128,7 +131,7 @@ export async function loadChannelPage(db: D1Database, applicationId: string, cha
   const merged = channel.pull_request !== null && (await mergedPullRequests(db, applicationId)).has(channel.pull_request);
 
   const { results } = await db
-    .prepare(`SELECT ${BUILD_COLUMNS} FROM builds b WHERE b.channel_id = ? AND b.deleted_at IS NULL ORDER BY b.run_id DESC, b.uploaded_at DESC`)
+    .prepare(`SELECT ${BUILD_COLUMNS} FROM builds b WHERE b.channel_id = ? AND ${LISTED} AND b.deleted_at IS NULL ORDER BY b.run_id DESC, b.uploaded_at DESC`)
     .bind(channel.id)
     .all<BuildRow>();
   if (results.length === 0) {
@@ -203,7 +206,7 @@ async function loadProduct(db: D1Database, row: ProductRow): Promise<ProductSumm
          SELECT ${BUILD_COLUMNS}, c.name AS channel, c.is_default, c.pull_request, c.ended_at,
            COUNT(*) OVER (PARTITION BY c.id) AS live,
            ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY b.run_id DESC, b.uploaded_at DESC) AS position
-         FROM channels c JOIN builds b ON b.channel_id = c.id AND b.deleted_at IS NULL
+         FROM channels c JOIN builds b ON b.channel_id = c.id AND ${LISTED} AND b.deleted_at IS NULL
          WHERE c.application_id = ?)
        WHERE position = 1`,
     )

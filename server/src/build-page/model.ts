@@ -66,6 +66,7 @@ interface BuildRow {
   version_code: number;
   repository: string;
   repository_visibility: string;
+  form_factor: string;
   channel_id: number;
   channel_name: string;
   pull_request: number | null;
@@ -109,8 +110,9 @@ function displayName(applicationId: string, label: string | null): string {
   return config.products?.[applicationId]?.displayName ?? label ?? applicationId;
 }
 
+// The newest Build of a Channel and Form factor (ADR 0017).
 const NEWEST = `SELECT id, application_id, label, version_name, version_code, uploaded_at, icon_key FROM builds
-  WHERE channel_id = ? AND deleted_at IS NULL ORDER BY run_id DESC, uploaded_at DESC LIMIT 1`;
+  WHERE channel_id = ? AND form_factor = ? AND deleted_at IS NULL ORDER BY run_id DESC, uploaded_at DESC LIMIT 1`;
 
 function linked(row: LinkedRow | null): LinkedBuild | null {
   if (!row) return null;
@@ -130,7 +132,7 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
   const row = await db
     .prepare(
       `SELECT b.id, b.application_id, b.label, b.version_name, b.version_code, p.repository, p.repository_visibility,
-         b.channel_id, c.name AS channel_name, c.pull_request, c.ended_at, b.run_id, b.run_number, b.workflow,
+         b.form_factor, b.channel_id, c.name AS channel_name, c.pull_request, c.ended_at, b.run_id, b.run_number, b.workflow,
          b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.uploaded_at, b.file_size, b.file_sha256,
          b.signer_sha256, b.icon_key, b.deleted_at, b.deleted_reason
        FROM builds b JOIN products p ON p.application_id = b.application_id JOIN channels c ON c.id = b.channel_id
@@ -164,7 +166,7 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
     deletedAt: row.deleted_at,
     deletedReason: row.deleted_reason,
   };
-  const newest = linked(await db.prepare(NEWEST).bind(row.channel_id).first<LinkedRow>());
+  const newest = linked(await db.prepare(NEWEST).bind(row.channel_id, row.form_factor).first<LinkedRow>());
 
   if (row.deleted_at === null) {
     const isNewest = newest === null || newest.id === row.id;
@@ -190,6 +192,6 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
     .prepare("SELECT id, name FROM channels WHERE application_id = ? AND is_default = 1")
     .bind(row.application_id)
     .first<{ id: number; name: string }>();
-  const next = fallback ? linked(await db.prepare(NEWEST).bind(fallback.id).first<LinkedRow>()) : null;
+  const next = fallback ? linked(await db.prepare(NEWEST).bind(fallback.id, row.form_factor).first<LinkedRow>()) : null;
   return { kind: "expired", build, next: { channel: fallback?.name ?? null, build: next, because: "channel_ended" } };
 }

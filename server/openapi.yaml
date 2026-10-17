@@ -79,10 +79,11 @@ paths:
       summary: Asks whether a newer Build exists for an installed Build (an Update check).
       description: >
         The SDK sends what the installed Build is: its Product, its Channel, the run ID from its
-        Stamp (left out by a Build with no Stamp), its Signer and its version code. Newer means a
-        higher run ID on the same Channel (ADR 0009), whether or not the stamped run uploaded a
-        Build; without a Stamp every Build on the Channel counts as newer (ADR 0013). Only Builds
-        with the installed Signer are offered as Updates (ADR 0006). Responses are never cached.
+        Stamp (left out by a Build with no Stamp), its Signer, its version code and its Form
+        factor, the only one whose Builds are considered (ADR 0017). Newer means a higher run ID
+        on the same Channel (ADR 0009), whether or not the stamped run uploaded a Build; without a
+        Stamp every Build on the Channel counts as newer (ADR 0013). Only Builds with the installed
+        Signer are offered as Updates (ADR 0006). Responses are never cached.
       parameters:
         - name: applicationId
           in: query
@@ -116,6 +117,14 @@ paths:
           schema:
             type: integer
             minimum: 1
+        - name: formFactor
+          in: query
+          required: false
+          description: >
+            The installed Build's Form factor; only Builds of it are offered (ADR 0017). `mobile`
+            when absent.
+          schema:
+            $ref: "#/components/schemas/FormFactor"
       responses:
         "200":
           description: >
@@ -586,6 +595,12 @@ components:
       description: 8 random base62 characters.
       type: string
       pattern: "^[0-9A-Za-z]{8}$"
+    FormFactor:
+      description: >
+        The kind of device a Build installs on (ADR 0017): `mobile` for phones and tablets, `wear`
+        for Wear OS watches.
+      type: string
+      enum: [mobile, wear]
     Sha256:
       description: A SHA-256 digest in lowercase hex.
       type: string
@@ -615,6 +630,12 @@ components:
           description: The SHA-256 digest of the APK's signing certificate (ADR 0006).
           allOf:
             - $ref: "#/components/schemas/Sha256"
+        formFactor:
+          description: >
+            The APK's Form factor, `mobile` when absent. A run uploads one Build per Product and
+            Form factor.
+          allOf:
+            - $ref: "#/components/schemas/FormFactor"
         apk:
           $ref: "#/components/schemas/FileDescriptor"
         icon:

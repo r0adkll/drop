@@ -32,8 +32,8 @@ async function expireBuilds(db: D1Database, now: number): Promise<string[]> {
   const { results } = await db
     .prepare(
       `SELECT b.id, b.application_id, b.uploaded_at, b.file_key, c.pull_request, c.ended_at,
-         b.id = (SELECT b2.id FROM builds b2 WHERE b2.channel_id = b.channel_id AND b2.deleted_at IS NULL
-                 ORDER BY b2.run_id DESC, b2.uploaded_at DESC LIMIT 1) AS newest
+         b.id = (SELECT b2.id FROM builds b2 WHERE b2.channel_id = b.channel_id AND b2.form_factor = b.form_factor
+                 AND b2.deleted_at IS NULL ORDER BY b2.run_id DESC, b2.uploaded_at DESC LIMIT 1) AS newest
        FROM builds b JOIN channels c ON c.id = b.channel_id
        WHERE b.deleted_at IS NULL`,
     )

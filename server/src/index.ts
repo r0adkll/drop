@@ -92,8 +92,10 @@ export function createApp(deps: Dependencies) {
     // Only a Build's first confirmation goes to webhooks; a later attempt of its run posts nothing.
     const isNew = !(await c.env.DB.prepare("SELECT 1 FROM builds WHERE id = ?").bind(buildId).first());
     const uploaded = await completeUpload({ env: c.env, claims, now: deps.now(), waitUntil: waitUntil(c) }, buildId);
-    waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
-    if (isNew) {
+    // Wear Builds aren't announced until they have a design of their own (docs/design.md#form-factors).
+    const announced = await c.env.DB.prepare("SELECT 1 FROM builds WHERE id = ? AND form_factor = 'mobile'").bind(buildId).first();
+    if (announced) waitUntil(c)(announceBuild(deps, c.env, buildId, claims.repositoryOwnerId));
+    if (announced && isNew) {
       waitUntil(c)(
         sendBuildWebhooks(c.env as unknown as Record<string, unknown> & { DB: D1Database }, config.url, buildId, { fetch: deps.webhookFetch }).catch((error: unknown) => {
           console.error(`Sending webhooks for Build ${buildId} failed:`, error);

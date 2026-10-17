@@ -158,6 +158,20 @@ describe("webhooks from uploads", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(recorder.requests).toHaveLength(1);
   });
+
+  it("posts nothing for a Wear Build", async () => {
+    config.webhooks = { "test-slack": { format: "slack" } };
+    const recorder = recordingFetch();
+    const t = await createTestApp({ webhookFetch: recorder.fetch });
+    const token = await t.issuer.sign({ run_id: "11384799100" });
+    const post = (path: string, body?: unknown) =>
+      t.app.request(path, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+    const { buildId } = (await (await post("/api/v1/uploads", uploadRequest(uniqueApplicationId(), { formFactor: "wear" }))).json()) as { buildId: string };
+    await env.BUILDS.put(`builds/${buildId}/1/app.apk`, new Uint8Array([1, 2, 3, 4]));
+    expect((await post(`/api/v1/uploads/${buildId}/complete`)).status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(recorder.requests).toHaveLength(0);
+  });
 });
 
 describe("the PNG QR code", () => {

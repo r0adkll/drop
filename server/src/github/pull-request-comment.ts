@@ -158,7 +158,10 @@ interface IssueComment {
   performed_via_github_app?: { id: number } | null;
 }
 
-/** What the comment should say now, from D1. Undefined when there is nothing to say. */
+/**
+ * What the comment should say now, from D1. Undefined when there is nothing to say. It shows mobile
+ * Builds only, until Wear Builds have a design of their own (docs/design.md#form-factors).
+ */
 export async function commentContent(db: D1Database, baseUrl: string, target: CommentTarget): Promise<CommentContent | undefined> {
   const { results } = await db
     .prepare(
@@ -167,7 +170,7 @@ export async function commentContent(db: D1Database, baseUrl: string, target: Co
        FROM channels c
        JOIN products p ON p.application_id = c.application_id
        JOIN builds b ON b.id = (
-         SELECT b2.id FROM builds b2 WHERE b2.channel_id = c.id AND b2.deleted_at IS NULL
+         SELECT b2.id FROM builds b2 WHERE b2.channel_id = c.id AND b2.form_factor = 'mobile' AND b2.deleted_at IS NULL
          ORDER BY b2.run_id DESC, b2.uploaded_at DESC LIMIT 1)
        WHERE p.repository_id = ? AND c.pull_request = ?`,
     )

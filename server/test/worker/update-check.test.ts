@@ -99,6 +99,32 @@ describe("the Update check", () => {
     expect((await check({ applicationId, runId: 101 })).body).toMatchObject({ status: "reinstall_required", update: { requiresReinstall: "signer" } });
   });
 
+  it("offers only Builds of the installed Form factor, mobile when it isn't sent", async () => {
+    const applicationId = uniqueApplicationId();
+    const phone = await seedBuild({ applicationId, runId: 101 });
+    const watch = await seedBuild({ applicationId, runId: 102, formFactor: "wear", versionCode: 1 });
+    expect((await check({ applicationId, runId: 100 })).body).toMatchObject({ status: "update", update: { buildId: phone.id } });
+    expect((await check({ applicationId, runId: 100, formFactor: "mobile" })).body).toMatchObject({ update: { buildId: phone.id } });
+    expect((await check({ applicationId, runId: 100, formFactor: "wear", versionCode: 1 })).body).toMatchObject({
+      status: "update",
+      update: { buildId: watch.id, versionCode: 1 },
+    });
+    expect((await check({ applicationId, runId: 102, formFactor: "wear" })).body).toEqual({ status: "up_to_date" });
+
+    // An ended Channel offers the default Channel's newest Build of the same Form factor.
+    const pr = await seedBuild({ applicationId, channel: "pr/9", runId: 103, formFactor: "wear" });
+    await seedBuild({ applicationId, runId: 104 });
+    await env.DB.prepare("UPDATE channels SET ended_at = ? WHERE id = ?").bind(NOW, pr.channelId).run();
+    expect((await check({ applicationId, channel: "pr/9", runId: 103, formFactor: "wear" })).body).toMatchObject({
+      status: "channel_ended",
+      update: { buildId: watch.id },
+    });
+
+    const { status, body } = await check({ applicationId, formFactor: "tv" });
+    expect(status).toBe(400);
+    expect(body).toEqual({ code: "invalid_request", message: "formFactor must be one of mobile, wear." });
+  });
+
   it("sends a Build on an ended Channel to the default Channel's newest Build, preferring its Signer", async () => {
     const applicationId = uniqueApplicationId();
     const main = await seedBuild({ applicationId, runId: 90 });

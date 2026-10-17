@@ -112,6 +112,17 @@ describe("the Channel page", () => {
     expect(html).toContain(`href="/p/${t.applicationId}/c/main">Open main</a>`);
   });
 
+  it("lists mobile Builds only, until Wear Builds are designed for", async () => {
+    const applicationId = uniqueApplicationId();
+    await seedBuild({ applicationId, channel: "main", runId: 40, versionName: "2.8.0" });
+    await seedBuild({ applicationId, channel: "main", runId: 41, versionName: "9.9.9-watch", formFactor: "wear" });
+    for (const path of ["/", `/p/${applicationId}`, `/p/${applicationId}/c/main`]) {
+      const { html } = await get(path);
+      expect(html, path).toContain("2.8.0");
+      expect(html, path).not.toContain("9.9.9-watch");
+    }
+  });
+
   it("is a 404 for an unknown Channel and escapes what uploads control", async () => {
     const t = await seedTrailhead();
     expect((await get(`/p/${t.applicationId}/c/nope`)).status).toBe(404);

@@ -69,6 +69,10 @@ describe("POST /api/v1/uploads", () => {
       code: "invalid_request",
       message: "releaseNotes must be a string of at most 4000 characters.",
     });
+    expect((await create(t, uploadRequest(uniqueApplicationId(), { formFactor: "tv" }))).body).toEqual({
+      code: "invalid_request",
+      message: "formFactor must be one of mobile, wear.",
+    });
   });
 
   it("keeps release notes with line endings normalised, and blank notes as none", async () => {
@@ -188,6 +192,25 @@ describe("POST /api/v1/uploads", () => {
       await confirm(t, first.body.buildId, 1, claims);
 
       const again = await create(t, sized(applicationId), claims);
+      expect(again.status).toBe(409);
+      expect(again.body.code).toBe("build_exists_for_run");
+    });
+
+    it("takes a Build of each Form factor from one attempt", async () => {
+      const t = await createTestApp();
+      const applicationId = uniqueApplicationId();
+      const claims = { run_id: nextRun() };
+      const phone = await create(t, sized(applicationId), claims);
+      await confirm(t, phone.body.buildId, 1, claims);
+
+      const watch = await create(t, sized(applicationId, { formFactor: "wear", versionCode: 7 }), claims);
+      expect(watch.status).toBe(201);
+      expect(watch.body.buildId).not.toBe(phone.body.buildId);
+      await confirm(t, watch.body.buildId, 1, claims);
+      expect(await build(phone.body.buildId)).toMatchObject({ form_factor: "mobile", version_code: 4127 });
+      expect(await build(watch.body.buildId)).toMatchObject({ form_factor: "wear", version_code: 7 });
+
+      const again = await create(t, sized(applicationId, { formFactor: "wear" }), claims);
       expect(again.status).toBe(409);
       expect(again.body.code).toBe("build_exists_for_run");
     });

@@ -70,7 +70,7 @@ export interface paths {
         };
         /**
          * Asks whether a newer Build exists for an installed Build (an Update check).
-         * @description The SDK sends what the installed Build is: its Product, its Channel, the run ID from its Stamp (left out by a Build with no Stamp), its Signer and its version code. Newer means a higher run ID on the same Channel (ADR 0009), whether or not the stamped run uploaded a Build; without a Stamp every Build on the Channel counts as newer (ADR 0013). Only Builds with the installed Signer are offered as Updates (ADR 0006). Responses are never cached.
+         * @description The SDK sends what the installed Build is: its Product, its Channel, the run ID from its Stamp (left out by a Build with no Stamp), its Signer, its version code and its Form factor, the only one whose Builds are considered (ADR 0017). Newer means a higher run ID on the same Channel (ADR 0009), whether or not the stamped run uploaded a Build; without a Stamp every Build on the Channel counts as newer (ADR 0013). Only Builds with the installed Signer are offered as Updates (ADR 0006). Responses are never cached.
          */
         get: operations["checkForUpdate"];
         put?: never;
@@ -358,6 +358,11 @@ export interface components {
         };
         /** @description 8 random base62 characters. */
         BuildId: string;
+        /**
+         * @description The kind of device a Build installs on (ADR 0017): `mobile` for phones and tablets, `wear` for Wear OS watches.
+         * @enum {string}
+         */
+        FormFactor: "mobile" | "wear";
         /** @description A SHA-256 digest in lowercase hex. */
         Sha256: string;
         CreateUploadRequest: {
@@ -369,6 +374,8 @@ export interface components {
             label?: string;
             /** @description The SHA-256 digest of the APK's signing certificate (ADR 0006). */
             signerSha256: components["schemas"]["Sha256"];
+            /** @description The APK's Form factor, `mobile` when absent. A run uploads one Build per Product and Form factor. */
+            formFactor?: components["schemas"]["FormFactor"];
             apk: components["schemas"]["FileDescriptor"];
             icon?: components["schemas"]["IconDescriptor"];
             /** @description The Channel to upload to. `pr/<number>` is a Pull request channel and must come from a run of that pull request. */
@@ -529,6 +536,8 @@ export interface operations {
                 signer: components["schemas"]["Sha256"];
                 /** @description The installed app's version code. */
                 versionCode: number;
+                /** @description The installed Build's Form factor; only Builds of it are offered (ADR 0017). `mobile` when absent. */
+                formFactor?: components["schemas"]["FormFactor"];
             };
             header?: never;
             path?: never;

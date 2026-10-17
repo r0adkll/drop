@@ -6,6 +6,14 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+### Added
+
+- Server: Builds have a Form factor, `mobile` or `wear`, so a run can upload a Wear OS APK beside
+  its phone APK under the same application ID. The Update check offers each installed Build only
+  Builds of its own Form factor. Until Wear Builds are designed for, they have a Build page but are
+  left out of the site pages, pull request comments, commit comments and webhooks. Deploying runs a
+  migration that rebuilds the `builds` and `uploads` tables.
+
 ## [0.3.1] - 2026-10-17
 
 ### Changed

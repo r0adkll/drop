@@ -9,7 +9,7 @@ describe("migrations", () => {
     expect(results.map((r) => r.name)).toEqual(["builds", "channels", "products", "uploads"]);
   });
 
-  it("allow one Build per run of a Product", async () => {
+  it("allow one Build per run of a Product and Form factor", async () => {
     await env.DB.batch([
       env.DB.prepare(
         "INSERT INTO products (application_id, repository_id, repository, repository_visibility, created_at) VALUES ('com.example.app', 1, 'your-org/app', 'public', 0)",
@@ -18,17 +18,20 @@ describe("migrations", () => {
         "INSERT INTO channels (id, application_id, name, is_default, created_at) VALUES (1, 'com.example.app', 'main', 1, 0)",
       ),
     ]);
-    const insertBuild = (id: string) =>
+    const insertBuild = (id: string, formFactor = "mobile") =>
       env.DB.prepare(
-        `INSERT INTO builds (id, application_id, channel_id, run_id, run_attempt, workflow, run_number,
+        `INSERT INTO builds (id, application_id, form_factor, channel_id, run_id, run_attempt, workflow, run_number,
            event_name, ref, commit_sha, built_sha, version_code, signer_sha256, file_size, file_sha256,
            file_key, uploaded_at)
-         VALUES (?, 'com.example.app', 1, 42, 1, 'Android', 7, 'push', 'refs/heads/main', 'abc', 'abc', 1,
+         VALUES (?, 'com.example.app', ?, 1, 42, 1, 'Android', 7, 'push', 'refs/heads/main', 'abc', 'abc', 1,
            'aa', 1, 'bb', 'k', 0)`,
-      ).bind(id);
+      ).bind(id, formFactor);
 
     await insertBuild("k7Qm2xPa").run();
     await expect(insertBuild("Rt4wN8cZ").run()).rejects.toThrow(/UNIQUE/);
+    await insertBuild("Wq3eR5tY", "wear").run();
+    await expect(insertBuild("Pz8xC2vB", "wear").run()).rejects.toThrow(/UNIQUE/);
+    await expect(insertBuild("Mn6bV4cX", "tv").run()).rejects.toThrow(/CHECK/);
     await expect(insertBuild("toolongid").run()).rejects.toThrow(/CHECK/);
   });
 

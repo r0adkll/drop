@@ -46,6 +46,17 @@ describe("applyRetention", () => {
     for (const kept of [recent, newest, prNewest]) expect(await deletedAt(kept.id)).toBeNull();
   });
 
+  it("keeps the newest Build of each Form factor", async () => {
+    const now = later();
+    const applicationId = uniqueApplicationId();
+    const phone = await seedBuild({ applicationId, runId: 2, uploadedAt: now - 40 * DAY });
+    const oldWatch = await seedBuild({ applicationId, runId: 1, uploadedAt: now - 40 * DAY, formFactor: "wear" });
+    const watch = await seedBuild({ applicationId, runId: 2, uploadedAt: now - 40 * DAY, formFactor: "wear" });
+
+    expect((await applyRetention(env.DB, env.BUILDS, now)).expiredBuilds).toEqual([oldWatch.id]);
+    for (const kept of [phone, watch]) expect(await deletedAt(kept.id)).toBeNull();
+  });
+
   it("expires every Build of an ended Pull request channel 24 hours after it ends", async () => {
     const now = later();
     const applicationId = uniqueApplicationId();

@@ -10,6 +10,7 @@ import { bytesToHex, type Presigner } from "./presign";
 export type CreateUploadRequest = components["schemas"]["CreateUploadRequest"];
 export type CreateUploadResponse = components["schemas"]["CreateUploadResponse"];
 export type UploadedBuild = components["schemas"]["UploadedBuild"];
+export type FormFactor = components["schemas"]["FormFactor"];
 
 /** How long presigned upload URLs work. Tokens last minutes too, so the whole upload fits inside. */
 export const UPLOAD_URL_TTL_SECONDS = 10 * 60;
@@ -34,6 +35,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const APPLICATION_ID = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const CHANNEL = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+export const FORM_FACTORS: readonly FormFactor[] = ["mobile", "wear"];
 
 export function parseCreateUpload(body: unknown): CreateUploadRequest {
   const fail = (field: string, problem: string): never => {
@@ -58,7 +60,7 @@ export function parseCreateUpload(body: unknown): CreateUploadRequest {
 
   const root = object(body, "body", [
     "applicationId", "versionCode", "versionName", "label", "signerSha256", "apk", "icon", "channel",
-    "defaultBranch", "commit", "pullRequestTitle", "releaseNotes",
+    "defaultBranch", "commit", "pullRequestTitle", "releaseNotes", "formFactor",
   ]);
   const apk = object(root.apk, "apk", ["size", "sha256"]);
   const commit = object(root.commit, "commit", ["sha", "message"]);
@@ -81,6 +83,10 @@ export function parseCreateUpload(body: unknown): CreateUploadRequest {
       fail("releaseNotes", `must be a string of at most ${RELEASE_NOTES_MAX} characters`);
     }
     request.releaseNotes = root.releaseNotes as string;
+  }
+  if (root.formFactor !== undefined) {
+    if (!FORM_FACTORS.includes(root.formFactor as FormFactor)) fail("formFactor", `must be one of ${FORM_FACTORS.join(", ")}`);
+    request.formFactor = root.formFactor as FormFactor;
   }
   if (root.icon !== undefined) {
     const icon = object(root.icon, "icon", ["size", "sha256", "contentType"]);
@@ -127,8 +133,9 @@ export function resolveChannel(request: Pick<CreateUploadRequest, "channel" | "d
 }
 
 /**
- * One Build per Product per run (ADR 0013). An upload in flight is always replaced; a confirmed Build
- * only by a later attempt of the run, and it keeps serving until that attempt is confirmed.
+ * One Build per Product, Form factor and run (ADR 0013, ADR 0017). An upload in flight is always
+ * replaced; a confirmed Build only by a later attempt of the run, and it keeps serving until that
+ * attempt is confirmed.
  */
 export function mayUpload(confirmedAttempt: number | null, runAttempt: number): boolean {
   return confirmedAttempt === null || runAttempt > confirmedAttempt;
@@ -184,16 +191,17 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
     .run();
 
   const channelId = await upsertChannel(db, request.applicationId, target, now);
+  const formFactor = request.formFactor ?? "mobile";
 
   // Upload row. The confirmed Build, if any, is left untouched until completeUpload swaps it.
   const [confirmed, inFlight] = await Promise.all([
     db
-      .prepare("SELECT id, run_attempt, deleted_reason FROM builds WHERE application_id = ? AND run_id = ?")
-      .bind(request.applicationId, claims.runId)
+      .prepare("SELECT id, run_attempt, deleted_reason FROM builds WHERE application_id = ? AND form_factor = ? AND run_id = ?")
+      .bind(request.applicationId, formFactor, claims.runId)
       .first<{ id: string; run_attempt: number; deleted_reason: string | null }>(),
     db
-      .prepare("SELECT build_id, file_key, icon_key FROM uploads WHERE application_id = ? AND run_id = ?")
-      .bind(request.applicationId, claims.runId)
+      .prepare("SELECT build_id, file_key, icon_key FROM uploads WHERE application_id = ? AND form_factor = ? AND run_id = ?")
+      .bind(request.applicationId, formFactor, claims.runId)
       .first<{ build_id: string; file_key: string; icon_key: string | null }>(),
   ]);
   // A Build the operator removed stays removed: re-running its workflow doesn't bring it back.
@@ -201,7 +209,7 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
     throw new ApiError(409, "build_removed", `Build ${confirmed.id} from run ${claims.runId} was removed by this Drop deployment's operator.`);
   }
   if (!mayUpload(confirmed?.run_attempt ?? null, claims.runAttempt)) {
-    throw new ApiError(409, "build_exists_for_run", `Run ${claims.runId} attempt ${confirmed!.run_attempt} already uploaded ${request.applicationId}; only a later attempt can replace it.`);
+    throw new ApiError(409, "build_exists_for_run", `Run ${claims.runId} attempt ${confirmed!.run_attempt} already uploaded ${request.applicationId} (${formFactor}); only a later attempt can replace it.`);
   }
 
   const id = confirmed?.id ?? inFlight?.build_id ?? (await reserveBuildId(db));
@@ -209,10 +217,10 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
   const iconKey = request.icon ? `builds/${id}/${claims.runAttempt}/icon.${request.icon.contentType === "image/png" ? "png" : "webp"}` : null;
   await db
     .prepare(
-      `INSERT INTO uploads (build_id, application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name,
+      `INSERT INTO uploads (build_id, application_id, form_factor, channel_id, run_id, run_attempt, workflow, run_number, event_name,
          ref, commit_sha, built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label,
          signer_sha256, file_size, file_sha256, file_key, icon_key, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (build_id) DO UPDATE SET channel_id = excluded.channel_id, run_attempt = excluded.run_attempt,
          workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
          ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
@@ -222,7 +230,7 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
          file_key = excluded.file_key, icon_key = excluded.icon_key, created_at = excluded.created_at`,
     )
     .bind(
-      id, request.applicationId, channelId, claims.runId, claims.runAttempt, claims.workflow, claims.runNumber,
+      id, request.applicationId, formFactor, channelId, claims.runId, claims.runAttempt, claims.workflow, claims.runNumber,
       claims.eventName, claims.ref, request.commit.sha, claims.sha, request.commit.message ?? null,
       request.pullRequestTitle ?? null, normaliseReleaseNotes(request.releaseNotes), request.versionCode, request.versionName ?? null, request.label ?? null,
       request.signerSha256, request.apk.size, request.apk.sha256, fileKey, iconKey, now,
@@ -288,7 +296,7 @@ async function reserveBuildId(db: D1Database): Promise<string> {
   throw new Error("Could not find an unused Build ID.");
 }
 
-const BUILD_COLUMNS = `application_id, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref, commit_sha,
+const BUILD_COLUMNS = `application_id, form_factor, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref, commit_sha,
   built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label, signer_sha256, file_size,
   file_sha256, file_key`;
 

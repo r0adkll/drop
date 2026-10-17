@@ -5,7 +5,7 @@ import { config } from "./config";
 import { ApiError } from "./errors";
 import { describeChange } from "./headline";
 import type { components } from "./generated/openapi";
-import { buildUrl } from "./uploads";
+import { buildUrl, FORM_FACTORS, type FormFactor } from "./uploads";
 
 export type UpdateCheck = components["schemas"]["UpdateCheck"];
 export type Update = components["schemas"]["Update"];
@@ -20,6 +20,8 @@ export interface InstalledBuild {
   runId?: number;
   signer: string;
   versionCode: number;
+  /** Only Builds of this Form factor are considered (ADR 0017). */
+  formFactor: FormFactor;
 }
 
 const APPLICATION_ID = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -42,11 +44,14 @@ export function parseUpdateCheck(query: URLSearchParams): InstalledBuild {
   if (!POSITIVE_INTEGER.test(versionCode)) fail("versionCode", "must be a positive integer");
   const runId = query.get("runId");
   if (runId !== null && !POSITIVE_INTEGER.test(runId)) fail("runId", "must be a positive integer");
+  const formFactor = query.get("formFactor") ?? "mobile";
+  if (!FORM_FACTORS.includes(formFactor as FormFactor)) fail("formFactor", `must be one of ${FORM_FACTORS.join(", ")}`);
   return {
     applicationId,
     channel,
     signer,
     versionCode: Number(versionCode),
+    formFactor: formFactor as FormFactor,
     ...(runId !== null ? { runId: Number(runId) } : {}),
   };
 }
@@ -94,22 +99,23 @@ export async function checkForUpdate(db: D1Database, installed: InstalledBuild, 
     const offered = await db
       .prepare(
         `SELECT ${BUILD_COLUMNS} FROM builds b JOIN channels c ON c.id = b.channel_id
-         WHERE c.application_id = ? AND c.is_default = 1 AND b.deleted_at IS NULL
+         WHERE c.application_id = ? AND c.is_default = 1 AND b.form_factor = ? AND b.deleted_at IS NULL
          ORDER BY b.signer_sha256 = ? DESC, b.run_id DESC, b.uploaded_at DESC LIMIT 1`,
       )
-      .bind(installed.applicationId, installed.signer)
+      .bind(installed.applicationId, installed.formFactor, installed.signer)
       .first<BuildRow>();
     return { status: "channel_ended", update: offered ? toUpdate(offered, installed, now) : null };
   }
 
-  // Newer: a higher run ID on this Channel (ADR 0009), or any Build without a Stamp (ADR 0013).
+  // Newer: a higher run ID on this Channel (ADR 0009), or any Build without a Stamp (ADR 0013), of
+  // the installed Form factor (ADR 0017).
   const { results: newer } = await db
     .prepare(
       `SELECT ${BUILD_COLUMNS} FROM builds b JOIN channels c ON c.id = b.channel_id
-       WHERE b.channel_id = ? AND b.deleted_at IS NULL AND b.run_id > ?
+       WHERE b.channel_id = ? AND b.form_factor = ? AND b.deleted_at IS NULL AND b.run_id > ?
        ORDER BY b.run_id DESC, b.uploaded_at DESC`,
     )
-    .bind(channel.id, installed.runId ?? 0)
+    .bind(channel.id, installed.formFactor, installed.runId ?? 0)
     .all<BuildRow>();
   if (newer.length === 0) return { status: "up_to_date" };
   const sameSigner = newer.find((build) => build.signer_sha256 === installed.signer);
