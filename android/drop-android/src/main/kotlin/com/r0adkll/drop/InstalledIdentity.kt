@@ -16,6 +16,8 @@ internal fun installedBuild(context: Context, config: DropConfig): InstalledBuil
     runId = config.stamp?.runId,
     signerSha256 = signerSha256(info),
     versionCode = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong(),
+    // Only a watch app runs on a watch, so the device says which Builds to be offered (ADR 0017).
+    formFactor = if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) FormFactor.Wear else FormFactor.Mobile,
   )
 }
 

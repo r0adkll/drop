@@ -53,6 +53,16 @@ class UpdateCheckerTest {
   }
 
   @Test
+  fun sendsAWearFormFactor() = runTest {
+    var url = ""
+    checker(body = """{"status":"up_to_date"}""") { url = it }.check(installed.copy(formFactor = FormFactor.Wear))
+    assertEquals(
+      "https://drop.example.com/api/v1/update?applicationId=com.example.trailhead&channel=pr%2F142&runId=38829996658&signer=${"3a".repeat(32)}&versionCode=13772&formFactor=wear",
+      url,
+    )
+  }
+
+  @Test
   fun readsWhatsNew() = runTest {
     val json = updateJson().replace("\"headline\":\"Offline map tiles\"", "\"headline\":\"Beta 2.9\",\"whatsNew\":\"• Filters\\n• Maps\"")
     val update = assertIs<UpdateCheckResult.Available>(checker(body = """{"status":"update","update":$json}""").check(installed)).update

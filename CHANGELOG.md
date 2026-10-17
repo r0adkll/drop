@@ -16,6 +16,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 - Action: uploads a Wear OS APK as a Wear Build, recognising it from the
   `android.hardware.type.watch` feature it requires. Upload it with a second step in the same job.
   The Deployment must run this release first.
+- SDK: a Build installed on a Wear OS watch checks for Wear Builds only. `InstalledBuild` has a
+  `formFactor`, so an app can also check on another device's behalf, such as its watch app's.
 
 ## [0.3.1] - 2026-10-17
 

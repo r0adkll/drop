@@ -1,6 +1,7 @@
 package com.r0adkll.drop
 
 import com.r0adkll.drop.api.apis.DefaultApi
+import com.r0adkll.drop.api.models.FormFactor as ApiFormFactor
 import com.r0adkll.drop.api.models.UpdateCheck
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.serialization.ContentConvertException
@@ -24,6 +25,8 @@ public class UpdateChecker(
         signer = installed.signerSha256,
         versionCode = installed.versionCode.toInt(),
         runId = installed.runId,
+        // Left out for mobile, which the server assumes.
+        formFactor = ApiFormFactor.wear.takeIf { installed.formFactor == FormFactor.Wear },
       )
     } catch (e: CancellationException) {
       throw e

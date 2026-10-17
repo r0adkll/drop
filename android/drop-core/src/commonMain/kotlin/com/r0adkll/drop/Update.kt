@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * What Drop knows about the installed Build: its Product, the Channel it follows, the run ID from its
- * Stamp (null for a Build with no Stamp), its Signer and its version code.
+ * Stamp (null for a Build with no Stamp), its Signer, its version code and its Form factor.
  */
 public data class InstalledBuild(
   val applicationId: String,
@@ -14,7 +14,18 @@ public data class InstalledBuild(
   /** SHA-256 of the installed app's signing certificate, in lowercase hex. */
   val signerSha256: String,
   val versionCode: Long,
+  /** Only Builds of this Form factor are offered (ADR 0017). */
+  val formFactor: FormFactor = FormFactor.Mobile,
 )
+
+/** The kind of device a Build installs on (ADR 0017). */
+public enum class FormFactor {
+  /** Phones and tablets. */
+  Mobile,
+
+  /** Wear OS watches. */
+  Wear,
+}
 
 /** A newer Build offered to the installed Build by an Update check. */
 @Serializable
