@@ -76,6 +76,8 @@ jobs:
         with:
           server: ${{ vars.DROP_SERVER }}
           apk: sample-debug.apk
+          # The link the sample's debug variant opens, so Open in App can be tried on a phone.
+          open-in-app: drop-sample://drop/{build}
 
   # Every push to main publishes the SDK and the Gradle plugin as VERSION_NAME's -SNAPSHOT to Maven
   # Central's snapshot repository (docs/design.md#releases). Skipped until the credentials exist.
