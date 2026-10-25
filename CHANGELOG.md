@@ -6,6 +6,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-25
+
 ### Added
 
 - Server: a phone Build's page can offer **Open in App** under Install, which opens the installed
