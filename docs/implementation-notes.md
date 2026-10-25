@@ -228,6 +228,11 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   sheet offered the Build; with none installed, the browser loaded the fallback Build page. An
   installed Build without the filter, Google Play without a fallback, and Firefox and Samsung
   Internet (which also document `intent:` URLs) are *unverified*.
+- A browser's `intent:` launch starts the activity in a new task but can't ask for `SINGLE_TOP` or
+  `CLEAR_TOP`. With the default `launchMode`, a repeat of the link that started the app's task
+  only brings the task forward, with no `onNewIntent`, and another Build's link stacks a second
+  activity. `launchMode="singleTop"` with the link read in `onNewIntent` opens it again with one
+  activity (seen on an emulator while adding Open in App to an app, 2026-10-25).
 
 ## SDK
 

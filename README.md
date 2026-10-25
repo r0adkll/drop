@@ -220,10 +220,12 @@ so they can't update to or from Drop's.
 **Open in App.** A Build page's **Open in App** opens your app at the `open-in-app` link its
 upload gave, aimed at your app's package alone, so a store build that claims the same scheme never
 answers it ([ADR 0018](docs/adr/0018-open-in-app.md)). Declare the link only in the variants that
-get the SDK, such as `src/debug/AndroidManifest.xml`, with `BROWSABLE`, which browsers require:
+get the SDK, such as `src/debug/AndroidManifest.xml`, with `BROWSABLE`, which browsers require.
+Make the activity `singleTop` too: a browser can't ask for it, and without it a second tap on the
+same link only brings the app forward, while another Build's link stacks a second activity.
 
 ```xml
-<activity android:name=".MainActivity">
+<activity android:name=".MainActivity" android:launchMode="singleTop">
   <intent-filter>
     <action android:name="android.intent.action.VIEW" />
     <category android:name="android.intent.category.DEFAULT" />
@@ -233,8 +235,9 @@ get the SDK, such as `src/debug/AndroidManifest.xml`, with `BROWSABLE`, which br
 </activity>
 ```
 
-Read the Build ID from the link and ask Drop about it; the Update sheet offers it, says when
-installing it moves the app to another Channel, or says it is already installed or has expired:
+Read the Build ID from the link, in `onCreate` and `onNewIntent`, and ask Drop about it; the
+Update sheet offers it, says when installing it moves the app to another Channel, or says it is
+already installed or has expired:
 
 ```kotlin
 intent.data?.takeIf { it.scheme == "yourapp" && it.host == "drop" }?.lastPathSegment?.let { buildId ->
