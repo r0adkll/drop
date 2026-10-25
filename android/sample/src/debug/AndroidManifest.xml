@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only variants with the SDK get Open in App's link (docs/design.md#open-in-app); store variants
+     have drop-noop and nothing to install. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <application>
+    <activity android:name=".MainActivity">
+      <!-- drop-sample://drop/<Build ID>, from the upload's open-in-app input. A Build page opens it
+           in this package only, so BROWSABLE is required. -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="drop-sample" android:host="drop" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

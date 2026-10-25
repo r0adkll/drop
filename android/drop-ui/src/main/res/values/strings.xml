@@ -56,4 +56,14 @@
 
   <string name="drop_up_to_date">%1$s is up to date</string>
   <string name="drop_close">Close</string>
+
+  <!-- A Build opened with Open in App (docs/design.md#open-in-app). -->
+  <string name="drop_install_this_build">Install this Build</string>
+  <string name="drop_opened_switch">This Build is on %1$s, and %2$s follows %3$s now. Once it\'s installed, Updates come from %1$s.</string>
+  <string name="drop_opened_switch_pr">This Build is on %1$s, and %2$s follows %3$s now. Once it\'s installed, Updates come from %1$s until pull request #%4$d closes.</string>
+  <string name="drop_already_installed_title">You already have this Build</string>
+  <string name="drop_already_installed_body">It\'s the Build installed on this phone, so there\'s nothing to install.</string>
+  <string name="drop_done">Done</string>
+  <string name="drop_expired_title">This Build has expired</string>
+  <string name="drop_expired_body">Drop deleted it on %1$s, so it can\'t be installed any more. Its Build page links to the newest Build on %2$s.</string>
 </resources>

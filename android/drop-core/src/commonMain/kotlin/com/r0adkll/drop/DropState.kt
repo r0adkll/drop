@@ -8,8 +8,17 @@ public sealed interface DropState {
   /** Nothing in progress, and no Update known. */
   public data object Idle : DropState
 
-  /** The last check offered [update]; [result] says how (an Update, a switch after a Channel ended, a reinstall). */
+  /**
+   * The last check offered [update]; [result] says how (an Update, a switch after a Channel ended, a
+   * reinstall, or a Build opened with Open in App).
+   */
   public data class UpdateAvailable(val update: Update, val result: UpdateCheckResult) : DropState
+
+  /**
+   * The Build opened with Open in App can't be installed: [result] is
+   * [UpdateCheckResult.AlreadyInstalled] or [UpdateCheckResult.BuildExpired].
+   */
+  public data class NotInstallable(val result: UpdateCheckResult) : DropState
 
   /** Downloading [update]; [totalBytes] is its file size. */
   public data class Downloading(val update: Update, val downloadedBytes: Long, val totalBytes: Long) : DropState {

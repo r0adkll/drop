@@ -37,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -106,8 +108,14 @@ internal fun DropUpdateSheetContent(drop: Drop, onDismiss: () -> Unit) {
         awaitingPermission -> Permission(current.update, onOpenSettings = { context.startActivity(drop.installPermissionIntent()) }, onDismiss = onDismiss)
         current.result is UpdateCheckResult.ChannelEnded -> ChannelEnded(current.update, onSwitch = { start(current.update) }, onDismiss = onDismiss)
         current.update.requiresReinstall != null -> Reinstall(current.update, onDismiss)
-        else -> Offer(current.update, onUpdate = { start(current.update) }, onDismiss = onDismiss)
+        else -> Offer(
+          current.update,
+          openedInApp = current.result is UpdateCheckResult.OpenedInApp,
+          onUpdate = { start(current.update) },
+          onDismiss = onDismiss,
+        )
       }
+      is DropState.NotInstallable -> NotInstallable(current.result, onDismiss)
       is DropState.Downloading -> Downloading(current, onHide = onDismiss, onCancel = { drop.reset(); onDismiss() })
       is DropState.ReadyToInstall -> Ready(current.update, drop.asksToConfirmInstall(), installing = false, onInstall = { drop.install() }, onLater = onDismiss)
       is DropState.Installing -> Ready(current.update, drop.asksToConfirmInstall(), installing = true, onInstall = {}, onLater = onDismiss)
@@ -123,10 +131,14 @@ internal fun DropUpdateSheetContent(drop: Drop, onDismiss: () -> Unit) {
   }
 }
 
+/**
+ * An Update, or a Build opened with Open in App that isn't one ([openedInApp]): on another Channel,
+ * which the note explains before it is installed, or older.
+ */
 @Composable
-private fun ColumnScope.Offer(update: Update, onUpdate: () -> Unit, onDismiss: () -> Unit) {
+private fun ColumnScope.Offer(update: Update, openedInApp: Boolean, onUpdate: () -> Unit, onDismiss: () -> Unit) {
   val context = LocalContext.current
-  Header(stringResource(R.string.drop_update_available), versionOf(update))
+  Header(stringResource(if (openedInApp) R.string.drop_install_this_build else R.string.drop_update_available), versionOf(update))
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Text(stringResource(R.string.drop_what_changed).uppercase(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(update.headline, style = MaterialTheme.typography.bodyLarge)
@@ -140,10 +152,50 @@ private fun ColumnScope.Offer(update: Update, onUpdate: () -> Unit, onDismiss: (
       )
     }
   }
-  Actions(primary = stringResource(R.string.drop_update), onPrimary = { onUpdate() }, secondary = stringResource(R.string.drop_not_now), onSecondary = onDismiss)
+  if (openedInApp) ChannelSwitchNote(update)
+  Actions(
+    primary = stringResource(if (openedInApp) R.string.drop_install else R.string.drop_update),
+    onPrimary = { onUpdate() },
+    secondary = stringResource(R.string.drop_not_now),
+    onSecondary = onDismiss,
+  )
   TextButton(onClick = { openBuildPage(context, update) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
     Text(stringResource(R.string.drop_open_build_page))
   }
+}
+
+/** Says that installing [update] moves the app to its Channel, when that isn't the one it follows. */
+@Composable
+private fun ChannelSwitchNote(update: Update) {
+  val context = LocalContext.current
+  val followed = remember { followedChannel(context) }
+  if (followed == null || followed == update.channel) return
+  val label = appLabel(context)
+  Text(
+    update.pullRequest?.let { stringResource(R.string.drop_opened_switch_pr, update.channel, label, followed, it) }
+      ?: stringResource(R.string.drop_opened_switch, update.channel, label, followed),
+    style = MaterialTheme.typography.bodyMedium,
+    modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)).padding(16.dp),
+  )
+}
+
+/** A Build opened with Open in App that can't be installed: the one already installed, or an expired one. */
+@Composable
+private fun NotInstallable(result: UpdateCheckResult, onDismiss: () -> Unit) {
+  val context = LocalContext.current
+  if (result is UpdateCheckResult.BuildExpired) {
+    val build = result.build
+    val deleted = DateUtils.formatDateTime(context, build.deletedAt.toEpochMilliseconds(), DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_YEAR)
+    Header(stringResource(R.string.drop_expired_title), "${versionOf(build.label, build.versionName, build.versionCode)} · ${build.channel}", gone = true)
+    Text(stringResource(R.string.drop_expired_body, deleted, build.channel), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Actions(primary = stringResource(R.string.drop_open_build_page), onPrimary = { openUrl(it, build.buildUrl) }, secondary = stringResource(R.string.drop_close), onSecondary = onDismiss)
+    return
+  }
+  val installed = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
+  val version = versionOf(appLabel(context), installed.versionName, installedVersionCode(context))
+  Header(stringResource(R.string.drop_already_installed_title), followedChannel(context)?.let { "$version · $it" } ?: version)
+  Text(stringResource(R.string.drop_already_installed_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+  Actions(primary = stringResource(R.string.drop_done), onPrimary = { onDismiss() }, secondary = null, onSecondary = {})
 }
 
 @Composable
@@ -303,9 +355,9 @@ private fun UpToDate(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun Header(title: String, subtitle: String?) {
+private fun Header(title: String, subtitle: String?, gone: Boolean = false) {
   Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-    AppIcon(52)
+    AppIcon(52, gone)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
       Text(title, style = MaterialTheme.typography.headlineSmall)
       if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -313,13 +365,20 @@ private fun Header(title: String, subtitle: String?) {
   }
 }
 
+/** The app's icon, greyed out when [gone], as an expired Build page shows it. */
 @Composable
-private fun AppIcon(sizeDp: Int) {
+private fun AppIcon(sizeDp: Int, gone: Boolean = false) {
   val context = LocalContext.current
   val icon = remember(sizeDp) {
     context.packageManager.getApplicationIcon(context.packageName).toBitmap(sizeDp * 3, sizeDp * 3).asImageBitmap()
   }
-  Image(icon, contentDescription = null, modifier = Modifier.size(sizeDp.dp).clip(RoundedCornerShape((sizeDp / 4).dp)))
+  Image(
+    icon,
+    contentDescription = null,
+    modifier = Modifier.size(sizeDp.dp).clip(RoundedCornerShape((sizeDp / 4).dp)),
+    alpha = if (gone) 0.55f else 1f,
+    colorFilter = if (gone) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
+  )
 }
 
 @Composable
@@ -350,9 +409,12 @@ private fun Actions(
 }
 
 @Composable
-private fun versionOf(update: Update): String =
-  update.versionName?.let { stringResource(R.string.drop_version, update.label, it, update.versionCode) }
-    ?: stringResource(R.string.drop_version_no_name, update.label, update.versionCode)
+private fun versionOf(update: Update): String = versionOf(update.label, update.versionName, update.versionCode)
+
+@Composable
+private fun versionOf(label: String, versionName: String?, versionCode: Long): String =
+  versionName?.let { stringResource(R.string.drop_version, label, it, versionCode) }
+    ?: stringResource(R.string.drop_version_no_name, label, versionCode)
 
 private fun ago(update: Update): String =
   DateUtils.getRelativeTimeSpanString(update.uploadedAt.toEpochMilliseconds(), System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
@@ -367,6 +429,12 @@ private fun installedVersionCode(context: Context): Long {
 /** The Channel the installed Build was stamped with, which is the one that ended. */
 private fun endedChannel(context: Context): String? = runCatching { DropManifest.read(context).stamp?.channel }.getOrNull()
 
-private fun openBuildPage(context: Context, update: Update) {
-  context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.buildUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+/** The Channel the installed Build follows: its Stamp's, else the app's Drop configuration's. */
+private fun followedChannel(context: Context): String? =
+  runCatching { DropManifest.read(context).let { it.stamp?.channel ?: it.channel } }.getOrNull()
+
+private fun openBuildPage(context: Context, update: Update) = openUrl(context, update.buildUrl)
+
+private fun openUrl(context: Context, url: String) {
+  context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }

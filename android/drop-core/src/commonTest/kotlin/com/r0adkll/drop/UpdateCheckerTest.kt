@@ -86,6 +86,44 @@ class UpdateCheckerTest {
   }
 
   @Test
+  fun checksTheBuildOpenedInTheApp() = runTest {
+    var url = ""
+    val result = checker(body = """{"status":"install","update":${updateJson()}}""") { url = it }.check(installed, "Rt4wN8cZ")
+    assertEquals(
+      "https://drop.example.com/api/v1/builds/Rt4wN8cZ/update?applicationId=com.example.trailhead&channel=pr%2F142&runId=38829996658&signer=${"3a".repeat(32)}&versionCode=13772",
+      url,
+    )
+    assertEquals("main", assertIs<UpdateCheckResult.OpenedInApp>(result).update.channel)
+    assertIs<UpdateCheckResult.Available>(checker(body = """{"status":"update","update":${updateJson()}}""").check(installed, "Rt4wN8cZ"))
+    val reinstall = checker(body = """{"status":"reinstall_required","update":${updateJson("version_code")}}""").check(installed, "Rt4wN8cZ")
+    assertEquals(ReinstallReason.VersionCode, assertIs<UpdateCheckResult.ReinstallRequired>(reinstall).update.requiresReinstall)
+  }
+
+  @Test
+  fun readsAnInstalledOrExpiredOpenedBuild() = runTest {
+    assertEquals(UpdateCheckResult.AlreadyInstalled, checker(body = """{"status":"installed"}""").check(installed, "Rt4wN8cZ"))
+    val expired = checker(
+      body = """
+        {"status":"expired","expired":{"buildId":"Hc2pQ7ve","channel":"pr/151","label":"Trailhead","versionName":"2.7.0",
+         "versionCode":4098,"deletedAt":"2026-10-24T09:00:00Z","buildUrl":"https://drop.example.com/b/Hc2pQ7ve"}}
+      """.trimIndent(),
+    ).check(installed, "Hc2pQ7ve")
+    val build = assertIs<UpdateCheckResult.BuildExpired>(expired).build
+    assertEquals("pr/151", build.channel)
+    assertEquals(4098, build.versionCode)
+    assertEquals("https://drop.example.com/b/Hc2pQ7ve", build.buildUrl)
+  }
+
+  @Test
+  fun refusesAMalformedOrUnknownOpenedBuild() = runTest {
+    var asked = false
+    assertIs<UpdateCheckResult.Failed>(checker(body = "{}") { asked = true }.check(installed, "drop/../x"))
+    assertEquals(false, asked)
+    assertIs<UpdateCheckResult.Failed>(checker(HttpStatusCode.NotFound, """{"code":"build_not_found","message":"x"}""").check(installed, "Rt4wN8cZ"))
+    assertEquals(UpdateCheckResult.SignInRequired, checker(HttpStatusCode.Forbidden, """{"code":"sign_in_required","message":"x"}""").check(installed, "Rt4wN8cZ"))
+  }
+
+  @Test
   fun survivesWhatANewerServerMightSay() = runTest {
     // An unknown reinstall reason drops to null rather than failing the whole answer.
     val result = checker(body = """{"status":"update","update":${updateJson("new_reason")},"extra":true}""").check(installed)

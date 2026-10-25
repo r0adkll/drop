@@ -15,6 +15,11 @@ turns that section into the release, and its text becomes the GitHub Release's n
   Build. Deploying runs a migration that adds a column to `builds` and `uploads`.
 - Action: the `open-in-app` input, a link your app recognises such as `yourapp://drop/{build}`, in
   which Drop fills in the Build's ID. The Deployment must run this release first.
+- SDK: `drop.check(buildId)` asks about the Build the Tester opened with Open in App, and the Update
+  sheet offers it as **Install this Build**, saying when installing moves the app to another
+  Channel, or says it is already installed or has expired. `UpdateCheckResult` gains `OpenedInApp`,
+  `AlreadyInstalled` and `BuildExpired`, and `DropState` gains `NotInstallable`, so an exhaustive
+  `when` over either needs the new cases.
 
 ## [0.5.0] - 2026-10-17
 

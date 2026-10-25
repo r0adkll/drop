@@ -27,7 +27,7 @@ public enum class FormFactor {
   Wear,
 }
 
-/** A newer Build offered to the installed Build by an Update check. */
+/** A Build offered to the installed Build: a newer one by an Update check, or the one opened with Open in App. */
 @Serializable
 public data class Update(
   val buildId: String,
@@ -70,13 +70,37 @@ public enum class ReinstallReason {
   Unknown,
 }
 
-/** The answer to an Update check. */
+/** A Build opened with Open in App whose file Drop has deleted; its Build page links to a newer one. */
+public data class ExpiredBuild(
+  val buildId: String,
+  val channel: String,
+  /** The app's name as Drop shows it. */
+  val label: String,
+  val versionName: String?,
+  val versionCode: Long,
+  val deletedAt: Instant,
+  val buildUrl: String,
+)
+
+/** The answer to an Update check, or to checking the Build opened with Open in App. */
 public sealed interface UpdateCheckResult {
   /** No newer Build on the Channel. */
   public data object UpToDate : UpdateCheckResult
 
   /** A newer Build with the installed Signer. */
   public data class Available(val update: Update) : UpdateCheckResult
+
+  /**
+   * The Build opened with Open in App installs over the installed Build but isn't an Update on its
+   * Channel: it is on another Channel, which the app follows once it is installed, or it is older.
+   */
+  public data class OpenedInApp(val update: Update) : UpdateCheckResult
+
+  /** The Build opened with Open in App is the one installed. */
+  public data object AlreadyInstalled : UpdateCheckResult
+
+  /** The Build opened with Open in App has expired, so it can't be installed. */
+  public data class BuildExpired(val build: ExpiredBuild) : UpdateCheckResult
 
   /**
    * The Channel's pull request has closed. [update] is the default Channel's newest Build to switch

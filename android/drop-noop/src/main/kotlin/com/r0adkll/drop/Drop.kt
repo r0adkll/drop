@@ -24,6 +24,9 @@ public class Drop(context: Context, config: DropConfig) {
   /** Always up to date: store builds update through the store. */
   public suspend fun check(): UpdateCheckResult = UpdateCheckResult.UpToDate
 
+  /** Always up to date: store builds don't install Builds from Drop. */
+  public suspend fun check(buildId: String): UpdateCheckResult = UpdateCheckResult.UpToDate
+
   public fun download(update: Update) {}
 
   public fun canInstall(): Boolean = false

@@ -1,5 +1,6 @@
 package com.r0adkll.drop.sample
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,23 +44,45 @@ import com.r0adkll.drop.ui.DropUpdateSheet
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+  /** The Build a Build page's Open in App asked for, until the screen has checked it. */
+  private var openedBuildId by mutableStateOf<String?>(null)
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     val drop = SampleApplication.drop(this)
+    if (savedInstanceState == null) openedBuildId = buildIdOf(intent)
     setContent {
       MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
-        Surface(Modifier.fillMaxSize()) { SampleScreen(drop) }
+        Surface(Modifier.fillMaxSize()) { SampleScreen(drop, openedBuildId, onOpenedChecked = { openedBuildId = null }) }
       }
     }
   }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    buildIdOf(intent)?.let { openedBuildId = it }
+  }
+
+  /** The Build ID in drop-sample://drop/<id>, the link the sample's upload gives (docs/design.md#open-in-app). */
+  private fun buildIdOf(intent: Intent): String? =
+    intent.data?.takeIf { intent.action == Intent.ACTION_VIEW && it.scheme == "drop-sample" && it.host == "drop" }?.lastPathSegment
 }
 
 @Composable
-private fun SampleScreen(drop: Drop) {
+private fun SampleScreen(drop: Drop, openedBuildId: String?, onOpenedChecked: () -> Unit) {
   val state by drop.state.collectAsState()
   val scope = rememberCoroutineScope()
   var lastCheck by remember { mutableStateOf<UpdateCheckResult?>(null) }
   var checking by remember { mutableStateOf(false) }
+  var showSheet by remember { mutableStateOf(false) }
+
+  // Open in App: offer the Build the Tester opened, whatever Channel this Build follows.
+  LaunchedEffect(openedBuildId) {
+    val buildId = openedBuildId ?: return@LaunchedEffect
+    lastCheck = drop.check(buildId)
+    onOpenedChecked()
+    showSheet = true
+  }
 
   Column(
     Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -95,7 +119,6 @@ private fun SampleScreen(drop: Drop) {
     lastCheck?.let { Text(describe(it), style = MaterialTheme.typography.bodyMedium) }
 
     // The ready-made sheet; the rest of this screen drives the SDK by hand.
-    var showSheet by remember { mutableStateOf(false) }
     OutlinedButton(onClick = { showSheet = true }) { Text("Show the Update sheet") }
     if (showSheet) DropUpdateSheet(drop = drop, onDismiss = { showSheet = false })
 
@@ -108,6 +131,7 @@ private fun SampleScreen(drop: Drop) {
             UpdateSummary(s.update)
             Button(onClick = { drop.download(s.update) }) { Text("Download") }
           }
+          is DropState.NotInstallable -> Text(describe(s.result))
           is DropState.Downloading -> {
             UpdateSummary(s.update)
             LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth())
@@ -165,7 +189,10 @@ private fun UpdateSummary(update: Update) {
 private fun describe(result: UpdateCheckResult): String = when (result) {
   UpdateCheckResult.UpToDate -> "Up to date."
   is UpdateCheckResult.Available -> "An Update is available."
-  is UpdateCheckResult.ReinstallRequired -> "Every newer Build is signed differently."
+  is UpdateCheckResult.OpenedInApp -> "The opened Build is on ${result.update.channel}, or older; it can be installed."
+  UpdateCheckResult.AlreadyInstalled -> "The opened Build is the one installed."
+  is UpdateCheckResult.BuildExpired -> "The opened Build has expired."
+  is UpdateCheckResult.ReinstallRequired -> "It's signed differently or has a lower version code, so it needs an uninstall first."
   is UpdateCheckResult.ChannelEnded -> if (result.update != null) "This Channel has ended; the default Channel's newest is offered." else "This Channel has ended, with nothing to switch to."
   UpdateCheckResult.SignInRequired -> "This Product needs sign-in."
   UpdateCheckResult.UnknownProduct -> "The server has no Builds of this app yet."

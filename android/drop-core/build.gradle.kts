@@ -19,7 +19,7 @@ val generateApiClient = tasks.register<GenerateTask>("generateApiClient") {
   outputDir = layout.buildDirectory.dir("generated/openapi")
   packageName = "com.r0adkll.drop.api"
   // Only what apps call; the upload and webhook operations belong to CI and GitHub.
-  openapiNormalizer = mapOf("FILTER" to "operationId:checkForUpdate|getHealth")
+  openapiNormalizer = mapOf("FILTER" to "operationId:checkForUpdate|checkBuild|getHealth")
   configOptions = mapOf("dateLibrary" to "kotlinx-datetime")
   // Error codes, statuses and reasons added later decode as an unknown case instead of failing
   // older SDKs.

@@ -217,6 +217,37 @@ so they can't update to or from Drop's.
    Or build your own UI from `check()`, `download()`, `canInstall()`,
    `installPermissionIntent()` and `install()`.
 
+**Open in App.** A Build page's **Open in App** opens your app at the `open-in-app` link its
+upload gave, aimed at your app's package alone, so a store build that claims the same scheme never
+answers it ([ADR 0018](docs/adr/0018-open-in-app.md)). Declare the link only in the variants that
+get the SDK, such as `src/debug/AndroidManifest.xml`, with `BROWSABLE`, which browsers require:
+
+```xml
+<activity android:name=".MainActivity">
+  <intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="yourapp" android:host="drop" />
+  </intent-filter>
+</activity>
+```
+
+Read the Build ID from the link and ask Drop about it; the Update sheet offers it, says when
+installing it moves the app to another Channel, or says it is already installed or has expired:
+
+```kotlin
+intent.data?.takeIf { it.scheme == "yourapp" && it.host == "drop" }?.lastPathSegment?.let { buildId ->
+  lifecycleScope.launch {
+    app.drop.check(buildId)
+    showSheet = true
+  }
+}
+```
+
+Once installed, the app follows that Build's Channel: a `pr/151` Build gets Updates from `pr/151`
+until the pull request closes, then is offered the default Channel's newest.
+
 **Channels.** Runs on the default branch upload to `main` and pull requests to `pr/<number>`.
 Any other run names its Channel with a job-level `DROP_CHANNEL`, which both the upload Action and
 the plugin's Stamp read, so they agree:

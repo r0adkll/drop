@@ -64,21 +64,33 @@ public class Drop(context: Context, private val config: DropConfig) {
   }
 
   /** Asks the server whether there is an Update for this Build. */
-  public suspend fun check(): UpdateCheckResult {
+  public suspend fun check(): UpdateCheckResult = offer { installed -> checker.check(installed) }
+
+  /**
+   * Asks the server about the Build [buildId], which the Tester opened with Open in App: the app
+   * reads the ID from its own link (docs/design.md#open-in-app). It is offered whatever Channel this
+   * Build follows, and installing it moves the app to that Build's Channel.
+   */
+  public suspend fun check(buildId: String): UpdateCheckResult = offer { installed -> checker.check(installed, buildId) }
+
+  private suspend fun offer(ask: suspend (InstalledBuild) -> UpdateCheckResult): UpdateCheckResult {
     val result = withContext(Dispatchers.IO) {
       try {
-        checker.check(installedBuild(app, config))
+        ask(installedBuild(app, config))
       } catch (e: IllegalStateException) {
         UpdateCheckResult.Failed(e.message ?: "Drop couldn't read the installed app.", e)
       }
     }
     // A download or install in progress isn't interrupted by a check.
     val current = mutableState.value
-    if (current is DropState.Idle || current is DropState.UpdateAvailable || current is DropState.Failed && store.load() == null) {
+    val replaceable = current is DropState.Idle || current is DropState.UpdateAvailable || current is DropState.NotInstallable
+    if (replaceable || current is DropState.Failed && store.load() == null) {
       mutableState.value = when (result) {
         is UpdateCheckResult.Available -> DropState.UpdateAvailable(result.update, result)
+        is UpdateCheckResult.OpenedInApp -> DropState.UpdateAvailable(result.update, result)
         is UpdateCheckResult.ReinstallRequired -> DropState.UpdateAvailable(result.update, result)
         is UpdateCheckResult.ChannelEnded -> result.update?.let { DropState.UpdateAvailable(it, result) } ?: DropState.Idle
+        UpdateCheckResult.AlreadyInstalled, is UpdateCheckResult.BuildExpired -> DropState.NotInstallable(result)
         is UpdateCheckResult.Failed -> current
         else -> DropState.Idle
       }
