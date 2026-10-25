@@ -223,8 +223,11 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   activity's filter must declare `BROWSABLE` (and `DEFAULT`). When no activity in the package
   matches, it loads the fallback URL; without one it opens Google Play at the package, which would
   offer a store build. It needs a user gesture, so only a tap opens it, never a redirect
-  (Chrome's "Android Intents with Chrome" page; *unverified* on a device, and in Firefox and
-  Samsung Internet, which also document `intent:` URLs).
+  (Chrome's "Android Intents with Chrome" page). Seen on an Android phone with the sample
+  (2026-10-25): with a Build that declares the filter installed, a tap opened the app and its Update
+  sheet offered the Build; with none installed, the browser loaded the fallback Build page. An
+  installed Build without the filter, Google Play without a fallback, and Firefox and Samsung
+  Internet (which also document `intent:` URLs) are *unverified*.
 
 ## SDK
 
