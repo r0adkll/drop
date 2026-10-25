@@ -29,6 +29,12 @@ inputs:
       Build's headline, ahead of the pull request title and commit message, and the rest is shown
       as What's new on the Build page and in the Update sheet.
     required: false
+  open-in-app:
+    description: >
+      A link your app recognises, such as `yourapp://drop/{build}`, for the Build page's Open in App
+      button. Drop fills in every `{build}` with the Build's ID; the app reads it and calls
+      `drop.check(buildId)` to offer that Build, whichever Channel it follows.
+    required: false
 outputs:
   build-id:
     description: The uploaded Build's ID.

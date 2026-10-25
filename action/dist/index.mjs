@@ -23409,6 +23409,7 @@ async function main() {
   const apkPath = getInput("apk", { required: true });
   const iconInput = getInput("icon") || void 0;
   const releaseNotes = getInput("notes", { trimWhitespace: true }) || void 0;
+  const openInApp = getInput("open-in-app") || void 0;
   if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL) {
     throw new Error("No OIDC token is available. Give the job `permissions: id-token: write` so Drop can verify which repository and run the Build came from.");
   }
@@ -23435,7 +23436,9 @@ async function main() {
     defaultBranch,
     commit: { sha: commit.sha, message: commit.message },
     pullRequestTitle: commit.pullRequestTitle,
-    ...releaseNotes ? { releaseNotes } : {}
+    ...releaseNotes ? { releaseNotes } : {},
+    // Sent only when set, so uploads without it still work with servers that predate Open in App.
+    ...openInApp ? { openInApp } : {}
   };
   const version = request.versionName ? `${request.versionName} (${request.versionCode})` : `(${request.versionCode})`;
   const kind = badging.formFactor === "wear" ? "Wear OS " : "";
@@ -23447,6 +23450,9 @@ async function main() {
   }).catch((error2) => {
     if (error2 instanceof Error && error2.message.includes("formFactor is not a known field")) {
       throw new Error(`${error2.message} This Drop deployment predates Wear OS Builds; upgrade it to upload one.`);
+    }
+    if (error2 instanceof Error && error2.message.includes("openInApp is not a known field")) {
+      throw new Error(`${error2.message} This Drop deployment predates Open in App; upgrade it, or leave out open-in-app.`);
     }
     throw error2;
   });

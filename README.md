@@ -104,6 +104,19 @@ shown as What's new on the Build page and in the Update sheet.
           notes: ${{ github.event.release.body }}
 ```
 
+To let Testers who already have the app install a Build from inside it, whatever Channel it
+follows, pass `open-in-app`: a link your app recognises, in which Drop fills in `{build}` with the
+Build's ID. Its Build page then shows **Open in App** under Install on phones; the app's side is
+under *Open in App* in [Adding Drop to your app](#adding-drop-to-your-app).
+
+```yaml
+      - uses: r0adkll/drop/action@v0
+        with:
+          server: https://drop.example.com
+          apk: app/build/outputs/apk/internal/app-internal.apk
+          open-in-app: yourapp://drop/{build}
+```
+
 A Wear OS app shares its phone app's application ID, so it is the same Product. Upload its APK with a
 second step in the same job; the Action sees from the APK that it is a watch app, and phones and
 watches are each offered only their own Builds

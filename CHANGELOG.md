@@ -13,6 +13,8 @@ turns that section into the release, and its text becomes the GitHub Release's n
   (ADR 0018). The link opens only the Product's own package; a phone without it comes back to the
   page, which says the app didn't open. `GET /api/v1/builds/{buildId}/update` answers for that one
   Build. Deploying runs a migration that adds a column to `builds` and `uploads`.
+- Action: the `open-in-app` input, a link your app recognises such as `yourapp://drop/{build}`, in
+  which Drop fills in the Build's ID. The Deployment must run this release first.
 
 ## [0.5.0] - 2026-10-17
 
