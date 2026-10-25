@@ -8,6 +8,7 @@ import type { components } from "./generated/openapi";
 import { buildUrl, FORM_FACTORS, type FormFactor } from "./uploads";
 
 export type UpdateCheck = components["schemas"]["UpdateCheck"];
+export type BuildCheck = components["schemas"]["BuildCheck"];
 export type Update = components["schemas"]["Update"];
 
 /** How long an Update's download URL is promised to work (docs/design.md#sdk). */
@@ -77,15 +78,15 @@ interface BuildRow {
 const BUILD_COLUMNS = `b.id, b.application_id, c.name AS channel, c.pull_request, b.label, b.version_name, b.version_code,
   b.uploaded_at, b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.signer_sha256, b.file_size, b.file_sha256`;
 
+const SIGN_IN_REQUIRED = () => new ApiError(403, "sign_in_required", "This Product's Builds need sign-in, which this server doesn't offer yet.");
+
 export async function checkForUpdate(db: D1Database, installed: InstalledBuild, now: number): Promise<UpdateCheck> {
   const product = await db
     .prepare("SELECT repository_visibility FROM products WHERE application_id = ?")
     .bind(installed.applicationId)
     .first<{ repository_visibility: string }>();
   if (!product) throw new ApiError(404, "product_not_found", `There is no Product ${installed.applicationId}.`);
-  if (!isPublicProduct(installed.applicationId, product.repository_visibility)) {
-    throw new ApiError(403, "sign_in_required", "This Product's Builds need sign-in, which this server doesn't offer yet.");
-  }
+  if (!isPublicProduct(installed.applicationId, product.repository_visibility)) throw SIGN_IN_REQUIRED();
 
   const channel = await db
     .prepare("SELECT id, ended_at FROM channels WHERE application_id = ? AND name = ?")
@@ -123,8 +124,53 @@ export async function checkForUpdate(db: D1Database, installed: InstalledBuild, 
   return { status: "reinstall_required", update: toUpdate(newer[0]!, installed, now) };
 }
 
+/**
+ * The Build a Tester opened with Open in App (docs/design.md#open-in-app), offered whatever
+ * Channel the installed Build follows. Only a Build of the installed Product and Form factor is
+ * answered, since any page can open the app's link with any ID.
+ */
+export async function checkBuild(db: D1Database, buildId: string, installed: InstalledBuild, now: number): Promise<BuildCheck> {
+  const build = await db
+    .prepare(
+      `SELECT ${BUILD_COLUMNS}, b.form_factor, b.run_id, b.deleted_at, p.repository_visibility
+       FROM builds b JOIN channels c ON c.id = b.channel_id JOIN products p ON p.application_id = b.application_id WHERE b.id = ?`,
+    )
+    .bind(buildId)
+    .first<BuildRow & { form_factor: FormFactor; run_id: number; deleted_at: number | null; repository_visibility: string }>();
+  if (!build || build.application_id !== installed.applicationId || build.form_factor !== installed.formFactor) {
+    throw new ApiError(404, "build_not_found", `There is no Build ${buildId} of ${installed.applicationId}.`);
+  }
+  if (!isPublicProduct(build.application_id, build.repository_visibility)) throw SIGN_IN_REQUIRED();
+
+  if (installed.runId === build.run_id) return { status: "installed" };
+  if (build.deleted_at !== null) {
+    return {
+      status: "expired",
+      expired: {
+        buildId: build.id,
+        channel: build.channel,
+        label: displayName(build),
+        versionName: build.version_name,
+        versionCode: build.version_code,
+        deletedAt: new Date(build.deleted_at).toISOString(),
+        buildUrl: buildUrl(build.id),
+      },
+    };
+  }
+  const update = toUpdate(build, installed, now);
+  if (update.requiresReinstall) return { status: "reinstall_required", update };
+  // Newer as the Update check judges it: a higher run ID on the installed Build's own Channel, or
+  // any Build there for a Build with no Stamp.
+  const newer = build.channel === installed.channel && build.run_id > (installed.runId ?? 0);
+  return { status: newer ? "update" : "install", update };
+}
+
+function displayName(build: Pick<BuildRow, "application_id" | "label">): string {
+  return config.products?.[build.application_id]?.displayName ?? build.label ?? build.application_id;
+}
+
 function toUpdate(build: BuildRow, installed: InstalledBuild, now: number): Update {
-  const name = config.products?.[build.application_id]?.displayName ?? build.label ?? build.application_id;
+  const name = displayName(build);
   const { headline, whatsNew } = describeChange(build, name);
   const requiresReinstall =
     build.signer_sha256 !== installed.signer ? "signer" : build.version_code < installed.versionCode ? "version_code" : undefined;

@@ -136,6 +136,70 @@ paths:
                 $ref: "#/components/schemas/UpdateCheck"
         default:
           $ref: "#/components/responses/Error"
+  /api/v1/builds/{buildId}/update:
+    get:
+      operationId: checkBuild
+      summary: Asks whether an installed Build can install one chosen Build (Open in App).
+      description: >
+        The Build a Tester opened in the app from its Build page (ADR 0018), whatever Channel the
+        installed Build follows. The SDK sends what the installed Build is, as for the Update check.
+        Only a Build of the installed Product and Form factor is answered; any other is `404
+        build_not_found`, like an unknown ID. Responses are never cached.
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/BuildId"
+        - name: applicationId
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/ApplicationId"
+        - name: channel
+          in: query
+          required: true
+          description: The Channel from the Stamp, or from the app's Drop configuration without one.
+          schema:
+            $ref: "#/components/schemas/ChannelName"
+        - name: runId
+          in: query
+          required: false
+          description: The GitHub Actions run ID from the installed Build's Stamp.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: signer
+          in: query
+          required: true
+          description: The SHA-256 digest of the installed app's signing certificate.
+          schema:
+            $ref: "#/components/schemas/Sha256"
+        - name: versionCode
+          in: query
+          required: true
+          description: The installed app's version code.
+          schema:
+            type: integer
+            minimum: 1
+        - name: formFactor
+          in: query
+          required: false
+          description: The installed Build's Form factor, `mobile` when absent (ADR 0017).
+          schema:
+            $ref: "#/components/schemas/FormFactor"
+      responses:
+        "200":
+          description: >
+            The answer. `404 build_not_found` when there is no such Build of the installed Product
+            and Form factor, and `403 sign_in_required` for a Private product.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildCheck"
+        default:
+          $ref: "#/components/responses/Error"
   /:
     get:
       operationId: getIndexPage
@@ -244,6 +308,15 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/BuildId"
+        - name: open
+          in: query
+          required: false
+          description: >
+            `failed` when Open in App fell back to the page because the browser found no app to
+            open (ADR 0018); the page then says so.
+          schema:
+            type: string
+            enum: [failed]
       responses:
         "200":
           description: The Build page, available or expired.
@@ -529,6 +602,47 @@ components:
           oneOf:
             - $ref: "#/components/schemas/Update"
             - type: "null"
+    BuildCheck:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          description: >
+            In this order: `installed`: it is the installed Build (the same run). `expired`: it was
+            deleted; `expired` describes it. `reinstall_required`: `update` can't install over the
+            installed Build (`requiresReinstall` says why). `update`: `update` is newer on the
+            installed Build's Channel, as an Update check would offer it. `install`: `update`
+            installs over the installed Build but is on another Channel, or older.
+          type: string
+          enum: [installed, expired, reinstall_required, update, install]
+        update:
+          $ref: "#/components/schemas/Update"
+        expired:
+          $ref: "#/components/schemas/ExpiredBuild"
+    ExpiredBuild:
+      description: A Build whose file was deleted; its Build page links to a newer one.
+      type: object
+      additionalProperties: false
+      required: [buildId, channel, label, versionName, versionCode, deletedAt, buildUrl]
+      properties:
+        buildId:
+          $ref: "#/components/schemas/BuildId"
+        channel:
+          $ref: "#/components/schemas/ChannelName"
+        label:
+          description: The app's name as Drop shows it.
+          type: string
+        versionName:
+          type: [string, "null"]
+        versionCode:
+          type: integer
+        deletedAt:
+          type: string
+          format: date-time
+        buildUrl:
+          type: string
+          format: uri
     Update:
       description: A Build offered to an installed Build.
       type: object
@@ -664,6 +778,14 @@ components:
             normalised and outer whitespace trimmed; blank notes are none.
           type: string
           maxLength: 4000
+        openInApp:
+          description: >
+            The link the Build page's Open in App opens (ADR 0018), from the Action's `open-in-app`
+            input: a URI the app recognises, in which every `{build}` becomes the Build's ID. It
+            must contain `{build}`, start with a scheme other than `http`, `javascript`, `intent`,
+            `file`, `content` or `data`, and hold no whitespace or `#`.
+          type: string
+          maxLength: 2000
     FileDescriptor:
       type: object
       additionalProperties: false

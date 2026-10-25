@@ -75,6 +75,28 @@ describe("POST /api/v1/uploads", () => {
     });
   });
 
+  it("fills the Open in App link with the Build's ID, refusing links the page can't open safely", async () => {
+    const t = await createTestApp();
+    const created = await create(t, uploadRequest(uniqueApplicationId(), { openInApp: "trailhead://drop/{build}?again={build}" }), { run_id: nextRun() });
+    expect(created.status).toBe(201);
+    expect((await upload(created.body.buildId))!.open_in_app).toBe(`trailhead://drop/${created.body.buildId}?again=${created.body.buildId}`);
+    const appLink = await create(t, uploadRequest(uniqueApplicationId(), { openInApp: "https://app.example.com/drop/{build}" }), { run_id: nextRun() });
+    expect(appLink.status).toBe(201);
+
+    const refused = async (openInApp: string) => (await create(t, uploadRequest(uniqueApplicationId(), { openInApp }))).body;
+    expect(await refused("trailhead://drop")).toEqual({
+      code: "invalid_request",
+      message: "openInApp must contain {build}, which Drop fills in with the Build's ID.",
+    });
+    for (const scheme of ["http", "javascript", "JavaScript", "intent", "file", "content", "data"]) {
+      expect((await refused(`${scheme}://x/{build}`)).message).toBe(`openInApp may not use the ${scheme} scheme.`);
+    }
+    for (const link of ["trailhead://drop/{build}#top", "trailhead://drop/ {build}", "drop/{build}", '"trailhead://{build}']) {
+      expect((await refused(link)).message).toBe("openInApp must be a URI such as yourapp://drop/{build}, without whitespace or #.");
+    }
+    expect((await refused(`trailhead://${"x".repeat(2000)}{build}`)).message).toBe("openInApp must be a string of 1 to 2000 characters.");
+  });
+
   it("keeps release notes with line endings normalised, and blank notes as none", async () => {
     const t = await createTestApp();
     const notes = await create(t, uploadRequest(uniqueApplicationId(), { releaseNotes: "\r\n  Beta 2.9\r\n\r\n• Filters  \n" }), { run_id: nextRun() });
@@ -276,7 +298,7 @@ describe("POST /api/v1/uploads/{id}/complete", () => {
 
   it("confirms the Build once its APK is uploaded, and again without change", async () => {
     const t = await createTestApp();
-    const p = await pending(t, { releaseNotes: "Beta 2.9" });
+    const p = await pending(t, { releaseNotes: "Beta 2.9", openInApp: "trailhead://drop/{build}" });
     await env.BUILDS.put(p.key, apkBytes, { sha256: p.sha256 });
 
     const done = await complete(t, p.buildId, { run_id: p.run });
@@ -284,6 +306,7 @@ describe("POST /api/v1/uploads/{id}/complete", () => {
     const uploadedAt = (await build(p.buildId))!.uploaded_at;
     expect(uploadedAt).not.toBeNull();
     expect((await build(p.buildId))!.release_notes).toBe("Beta 2.9");
+    expect((await build(p.buildId))!.open_in_app).toBe(`trailhead://drop/${p.buildId}`);
 
     t.advance(1000);
     expect((await complete(t, p.buildId, { run_id: p.run })).status).toBe(200);

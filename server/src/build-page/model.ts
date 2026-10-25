@@ -18,6 +18,8 @@ export interface PageBuild {
   commitMessage: string | null;
   pullRequestTitle: string | null;
   releaseNotes: string | null;
+  /** The link Open in App opens, with the Build's ID filled in (docs/design.md#open-in-app). */
+  openInApp: string | null;
   uploadedAt: number;
   fileSize: number;
   fileSha256: string;
@@ -81,6 +83,7 @@ interface BuildRow {
   commit_message: string | null;
   pull_request_title: string | null;
   release_notes: string | null;
+  open_in_app: string | null;
   uploaded_at: number;
   file_size: number;
   file_sha256: string;
@@ -140,7 +143,7 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
     .prepare(
       `SELECT b.id, b.application_id, b.label, b.version_name, b.version_code, p.repository, p.repository_visibility,
          b.form_factor, b.channel_id, c.name AS channel_name, c.pull_request, c.ended_at, b.run_id, b.run_number, b.workflow,
-         b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.uploaded_at, b.file_size, b.file_sha256,
+         b.commit_sha, b.commit_message, b.pull_request_title, b.release_notes, b.open_in_app, b.uploaded_at, b.file_size, b.file_sha256,
          b.signer_sha256, b.icon_key, b.deleted_at, b.deleted_reason
        FROM builds b JOIN products p ON p.application_id = b.application_id JOIN channels c ON c.id = b.channel_id
        WHERE b.id = ?`,
@@ -165,6 +168,7 @@ export async function loadBuildPage(db: D1Database, id: string): Promise<BuildPa
     commitMessage: row.commit_message,
     pullRequestTitle: row.pull_request_title,
     releaseNotes: row.release_notes,
+    openInApp: row.open_in_app,
     uploadedAt: row.uploaded_at,
     fileSize: row.file_size,
     fileSha256: row.file_sha256,

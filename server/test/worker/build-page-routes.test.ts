@@ -46,6 +46,16 @@ describe("GET /b/{buildId}", () => {
     expect(watchHtml).toContain("Newest on main");
   });
 
+  it("offers Open in App with the Build's own link, and says so when it fell back", async () => {
+    const { app } = await createTestApp();
+    const build = await seedBuild({ openInApp: "trailhead://drop/{build}" });
+    const html = await (await app.request(`/b/${build.id}`, {}, env)).text();
+    expect(html).toContain(`href="intent://drop/${build.id}#Intent;scheme=trailhead;package=${build.applicationId};`);
+    expect(html).not.toContain("didn’t open");
+    const fellBack = await (await app.request(`/b/${build.id}?open=failed`, {}, env)).text();
+    expect(fellBack).toContain("<b>Trailhead didn’t open.</b>");
+  });
+
   it("marks an older Build as superseded by the Channel's newest", async () => {
     const { app } = await createTestApp();
     const older = await seedBuild({ channel: "pr/7", runId: 100 });

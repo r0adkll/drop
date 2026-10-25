@@ -1,6 +1,7 @@
 import { closedPullRequestHours } from "../config";
 import { describeChange, firstLine } from "../headline";
 import { DROP_ICON_SVG } from "../icon";
+import { intentUrl } from "../open-in-app";
 import { qrSvg } from "../qr";
 import { buildDays, pullRequestBuildDays, type Kept } from "../retention";
 import type { BuildPageModel, LinkedBuild, PageBuild } from "./model";
@@ -19,7 +20,12 @@ export interface RenderContext {
   baseUrl: string;
 }
 
-export function renderBuildPage(model: BuildPageModel, ctx: RenderContext): RenderedPage {
+export interface BuildPageContext extends RenderContext {
+  /** Open in App fell back to the page: the browser found no app to open (docs/design.md#open-in-app). */
+  openFailed?: boolean;
+}
+
+export function renderBuildPage(model: BuildPageModel, ctx: BuildPageContext): RenderedPage {
   switch (model.kind) {
     case "not_found":
       return { status: 404, html: notFoundPage(ctx) };
@@ -35,7 +41,7 @@ export function renderBuildPage(model: BuildPageModel, ctx: RenderContext): Rend
 // ---------------------------------------------------------------------------------------------
 // Pages
 
-function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, ctx: RenderContext): string {
+function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, ctx: BuildPageContext): string {
   const url = pageUrl(ctx, build.id);
   const download = `/b/${build.id}/download`;
   const { headline, commitLine, whatsNew } = headlineOf(build);
@@ -74,17 +80,28 @@ function availablePage(build: PageBuild, newer: LinkedBuild | null, kept: Kept, 
     `Android asks you to allow installs from this browser once.</p>` +
     `<p><b>“App not installed”?</b> The copy on your phone was signed with a different key. Uninstall it, then install this Build.</p></div>`;
 
+  // Open in App (docs/design.md#open-in-app): phones only, since only they can open the app.
+  const openInApp = !wear && build.openInApp ? intentUrl(build.openInApp, build.applicationId, `${url}?open=failed`) : null;
+  const openFailed =
+    openInApp && ctx.openFailed
+      ? `<div class="banner" role="status"><p><b>${esc(build.name)} didn’t open.</b> It isn’t on this phone, or the copy you have ` +
+        `doesn’t support Open in App yet. Tap Install to get this Build.</p></div>`
+      : "";
+
   const installPanel = wear ? watchPanel(build, url, download) : qrPanel(url, download);
+  const install = `<a class="btn primary" href="${download}">${DOWNLOAD_ICON}Install · ${esc(formatSize(build.fileSize))}</a>`;
   const installBar = wear
     ? `<div class="install-bar phone-only"><div class="bar-btns"><button class="btn quiet" type="button" data-copy="bar-copy-field" hidden>Copy link for your computer</button>` +
       `<a class="btn quiet" href="${download}">Download APK · ${esc(formatSize(build.fileSize))}</a></div>` +
       `<input class="copy-field" id="bar-copy-field" type="text" readonly value="${esc(url)}" aria-label="Build page link" hidden></div>`
-    : `<div class="install-bar phone-only"><a class="btn primary" href="${download}">${DOWNLOAD_ICON}Install · ${esc(formatSize(build.fileSize))}</a></div>`;
+    : openInApp
+      ? `<div class="install-bar phone-only"><div class="bar-btns">${install}<a class="btn quiet" href="${esc(openInApp)}">${OPEN_ICON}Open in App</a></div></div>`
+      : `<div class="install-bar phone-only">${install}</div>`;
 
   const body =
     `<header class="head"><div class="wrap">${banner}${appRow(build, chips)}` +
     `<div class="hero"><h1>${esc(headline)}</h1>${commitLine ?? ""}</div></div></header>` +
-    `<main class="wrap body${wear ? " watch" : ""}"><section class="details" aria-labelledby="about">` +
+    `<main class="wrap body${wear ? " watch" : ""}"><section class="details" aria-labelledby="about">${openFailed}` +
     (whatsNew
       ? `<section class="notes" aria-labelledby="whats-new"><h2 class="label" id="whats-new">What’s new</h2>` +
         `<p class="notes-text">${linkified(whatsNew)}</p></section>`
@@ -429,6 +446,10 @@ export function esc(value: string): string {
 
 const ADB_PAIRING_DOCS = "https://developer.android.com/training/wearables/get-started/debugging";
 
+const OPEN_ICON =
+  `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ` +
+  `stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>`;
+
 const DOWNLOAD_ICON =
   `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ` +
   `stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>`;
@@ -570,6 +591,7 @@ h1{font-size:22px}
 .install-bar.phone-only{display:block;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);
 padding:12px max(16px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 .install-bar .btn{width:100%}
+.install-bar .btn.quiet{padding-block:11px}
 .bar-btns{display:grid;gap:8px}}
 .crumbs{font-size:13px;color:var(--muted);margin:0}
 .brand{display:flex;align-items:center;gap:18px;min-width:0}

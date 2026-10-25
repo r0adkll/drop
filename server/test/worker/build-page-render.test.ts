@@ -23,6 +23,7 @@ export function pageBuild(overrides: Partial<PageBuild> = {}): PageBuild {
     commitMessage: "Cache map tiles in the background when a trail is saved\n\nLonger body.",
     pullRequestTitle: "Offline map tiles for saved trails",
     releaseNotes: null,
+    openInApp: null,
     uploadedAt: UPLOADED,
     fileSize: 38_412_345,
     fileSha256: "b41c".padEnd(64, "0"),
@@ -93,6 +94,39 @@ describe("the Build page", () => {
     expect(html).not.toContain('<div class="qr">');
     expect(html).not.toContain("Install · ");
     expect(html).not.toContain("<dt>Watch app</dt>");
+  });
+
+  it("adds Open in App under Install, aimed at the Product's package with the page as its fallback", () => {
+    const build = pageBuild({ openInApp: "trailhead://drop/k7Qm2xPa?from=drop&tab=map" });
+    const { html } = render({ kind: "available", build, newer: newerBuild, kept: { kind: "while_newest" } });
+    expect(html).toContain(
+      '<div class="install-bar phone-only"><div class="bar-btns"><a class="btn primary" href="/b/k7Qm2xPa/download">' +
+        '<svg viewBox="0 0 24 24" width="18" height="18"',
+    );
+    expect(html).toContain(
+      '<a class="btn quiet" href="intent://drop/k7Qm2xPa?from=drop&amp;tab=map#Intent;scheme=trailhead;package=com.example.trailhead;' +
+        'S.browser_fallback_url=https%3A%2F%2Fdrop.example.com%2Fb%2Fk7Qm2xPa%3Fopen%3Dfailed;end"><svg',
+    );
+    expect(html).toContain("Open in App</a></div></div>");
+    expect(html).not.toContain("didn’t open");
+  });
+
+  it("says the app didn't open when Open in App falls back to the page", () => {
+    const model = (openInApp: string | null): BuildPageModel => ({ kind: "available", build: pageBuild({ openInApp }), newer: null, kept: { kind: "while_newest" } });
+    const { html } = renderBuildPage(model("trailhead://drop/k7Qm2xPa"), { ...CTX, openFailed: true });
+    expect(html).toContain(
+      '<section class="details" aria-labelledby="about"><div class="banner" role="status"><p><b>Trailhead didn’t open.</b> It isn’t on this phone, ' +
+        "or the copy you have doesn’t support Open in App yet. Tap Install to get this Build.</p></div>",
+    );
+    // Without a link, nothing could have failed to open.
+    expect(renderBuildPage(model(null), { ...CTX, openFailed: true }).html).not.toContain("didn’t open");
+  });
+
+  it("leaves Open in App off pages without a link and off Wear Builds", () => {
+    const page = (overrides: Partial<PageBuild>) => render({ kind: "available", build: pageBuild(overrides), newer: null, kept: { kind: "while_newest" } }).html;
+    expect(page({})).not.toContain("Open in App");
+    expect(page({})).toContain('<div class="install-bar phone-only"><a class="btn primary" href="/b/k7Qm2xPa/download">');
+    expect(page({ formFactor: "wear", openInApp: "trailhead://drop/k7Qm2xPa" })).not.toContain("Open in App");
   });
 
   it("falls back to the commit message, then the app name, as the headline", () => {

@@ -148,6 +148,7 @@ export async function seedBuild(
     commitMessage?: string | null;
     pullRequestTitle?: string | null;
     releaseNotes?: string | null;
+    openInApp?: string | null;
     signer?: string;
     formFactor?: "mobile" | "wear";
   } = {},
@@ -175,13 +176,14 @@ export async function seedBuild(
   await db
     .prepare(
       `INSERT INTO builds (id, application_id, form_factor, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref,
-         commit_sha, built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label, signer_sha256,
-         file_size, file_sha256, file_key, icon_key, uploaded_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'pull_request', 'refs/pull/1/merge', ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, ?, ?)`,
+         commit_sha, built_sha, commit_message, pull_request_title, release_notes, open_in_app, version_code, version_name, label,
+         signer_sha256, file_size, file_sha256, file_key, icon_key, uploaded_at, deleted_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'pull_request', 'refs/pull/1/merge', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id, applicationId, options.formFactor ?? "mobile", channelId, options.runId ?? 11384729304, options.workflow ?? "Android", options.runNumber ?? 1876,
       options.commitSha ?? "9f3c2a1".padEnd(40, "0"), "a".repeat(40), options.commitMessage ?? null, options.pullRequestTitle ?? null, options.releaseNotes ?? null,
+      options.openInApp?.replaceAll("{build}", id) ?? null,
       options.versionCode ?? 4127, options.versionName === undefined ? "2.8.0" : options.versionName,
       options.label === undefined ? "Trailhead" : options.label, options.signer ?? "3a".repeat(32), "b".repeat(64), `builds/${id}/1/app.apk`, options.iconKey ?? null, options.uploadedAt ?? NOW, options.deletedAt ?? null,
     )

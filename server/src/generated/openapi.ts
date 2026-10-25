@@ -81,6 +81,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/builds/{buildId}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Asks whether an installed Build can install one chosen Build (Open in App).
+         * @description The Build a Tester opened in the app from its Build page (ADR 0018), whatever Channel the installed Build follows. The SDK sends what the installed Build is, as for the Update check. Only a Build of the installed Product and Form factor is answered; any other is `404 build_not_found`, like an unknown ID. Responses are never cached.
+         */
+        get: operations["checkBuild"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -317,6 +337,28 @@ export interface components {
             status: "up_to_date" | "update" | "channel_ended" | "reinstall_required";
             update?: components["schemas"]["Update"] | null;
         };
+        BuildCheck: {
+            /**
+             * @description In this order: `installed`: it is the installed Build (the same run). `expired`: it was deleted; `expired` describes it. `reinstall_required`: `update` can't install over the installed Build (`requiresReinstall` says why). `update`: `update` is newer on the installed Build's Channel, as an Update check would offer it. `install`: `update` installs over the installed Build but is on another Channel, or older.
+             * @enum {string}
+             */
+            status: "installed" | "expired" | "reinstall_required" | "update" | "install";
+            update?: components["schemas"]["Update"];
+            expired?: components["schemas"]["ExpiredBuild"];
+        };
+        /** @description A Build whose file was deleted; its Build page links to a newer one. */
+        ExpiredBuild: {
+            buildId: components["schemas"]["BuildId"];
+            channel: components["schemas"]["ChannelName"];
+            /** @description The app's name as Drop shows it. */
+            label: string;
+            versionName: string | null;
+            versionCode: number;
+            /** Format: date-time */
+            deletedAt: string;
+            /** Format: uri */
+            buildUrl: string;
+        };
         /** @description A Build offered to an installed Build. */
         Update: {
             buildId: components["schemas"]["BuildId"];
@@ -386,6 +428,8 @@ export interface components {
             pullRequestTitle?: string;
             /** @description What changed, from the Action's `notes` input. The first line becomes the Build's headline, ahead of the pull request title, and the rest its What's new. Line endings are normalised and outer whitespace trimmed; blank notes are none. */
             releaseNotes?: string;
+            /** @description The link the Build page's Open in App opens (ADR 0018), from the Action's `open-in-app` input: a URI the app recognises, in which every `{build}` becomes the Build's ID. It must contain `{build}`, start with a scheme other than `http`, `javascript`, `intent`, `file`, `content` or `data`, and hold no whitespace or `#`. */
+            openInApp?: string;
         };
         FileDescriptor: {
             /**
@@ -557,6 +601,41 @@ export interface operations {
             default: components["responses"]["Error"];
         };
     };
+    checkBuild: {
+        parameters: {
+            query: {
+                applicationId: components["schemas"]["ApplicationId"];
+                /** @description The Channel from the Stamp, or from the app's Drop configuration without one. */
+                channel: components["schemas"]["ChannelName"];
+                /** @description The GitHub Actions run ID from the installed Build's Stamp. */
+                runId?: number;
+                /** @description The SHA-256 digest of the installed app's signing certificate. */
+                signer: components["schemas"]["Sha256"];
+                /** @description The installed app's version code. */
+                versionCode: number;
+                /** @description The installed Build's Form factor, `mobile` when absent (ADR 0017). */
+                formFactor?: components["schemas"]["FormFactor"];
+            };
+            header?: never;
+            path: {
+                buildId: components["schemas"]["BuildId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The answer. `404 build_not_found` when there is no such Build of the installed Product and Form factor, and `403 sign_in_required` for a Private product. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildCheck"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
     getIndexPage: {
         parameters: {
             query?: never;
@@ -679,7 +758,10 @@ export interface operations {
     };
     getBuildPage: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description `failed` when Open in App fell back to the page because the browser found no app to open (ADR 0018); the page then says so. */
+                open?: "failed";
+            };
             header?: never;
             path: {
                 buildId: components["schemas"]["BuildId"];

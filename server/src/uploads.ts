@@ -5,6 +5,7 @@ import { normaliseReleaseNotes } from "./headline";
 import type { components } from "./generated/openapi";
 import { newBuildId } from "./ids";
 import type { GitHubClaims } from "./oidc";
+import { fill, OPEN_IN_APP_MAX, openInAppProblem } from "./open-in-app";
 import { bytesToHex, type Presigner } from "./presign";
 
 export type CreateUploadRequest = components["schemas"]["CreateUploadRequest"];
@@ -60,7 +61,7 @@ export function parseCreateUpload(body: unknown): CreateUploadRequest {
 
   const root = object(body, "body", [
     "applicationId", "versionCode", "versionName", "label", "signerSha256", "apk", "icon", "channel",
-    "defaultBranch", "commit", "pullRequestTitle", "releaseNotes", "formFactor",
+    "defaultBranch", "commit", "pullRequestTitle", "releaseNotes", "formFactor", "openInApp",
   ]);
   const apk = object(root.apk, "apk", ["size", "sha256"]);
   const commit = object(root.commit, "commit", ["sha", "message"]);
@@ -87,6 +88,12 @@ export function parseCreateUpload(body: unknown): CreateUploadRequest {
   if (root.formFactor !== undefined) {
     if (!FORM_FACTORS.includes(root.formFactor as FormFactor)) fail("formFactor", `must be one of ${FORM_FACTORS.join(", ")}`);
     request.formFactor = root.formFactor as FormFactor;
+  }
+  if (root.openInApp !== undefined) {
+    const template = string(root.openInApp, "openInApp", OPEN_IN_APP_MAX);
+    const problem = openInAppProblem(template);
+    if (problem) fail("openInApp", problem);
+    request.openInApp = template;
   }
   if (root.icon !== undefined) {
     const icon = object(root.icon, "icon", ["size", "sha256", "contentType"]);
@@ -218,21 +225,23 @@ export async function createUpload(ctx: UploadContext, request: CreateUploadRequ
   await db
     .prepare(
       `INSERT INTO uploads (build_id, application_id, form_factor, channel_id, run_id, run_attempt, workflow, run_number, event_name,
-         ref, commit_sha, built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label,
-         signer_sha256, file_size, file_sha256, file_key, icon_key, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ref, commit_sha, built_sha, commit_message, pull_request_title, release_notes, open_in_app, version_code, version_name,
+         label, signer_sha256, file_size, file_sha256, file_key, icon_key, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (build_id) DO UPDATE SET channel_id = excluded.channel_id, run_attempt = excluded.run_attempt,
          workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
          ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
          commit_message = excluded.commit_message, pull_request_title = excluded.pull_request_title,
-         release_notes = excluded.release_notes, version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
+         release_notes = excluded.release_notes, open_in_app = excluded.open_in_app, version_code = excluded.version_code,
+         version_name = excluded.version_name, label = excluded.label,
          signer_sha256 = excluded.signer_sha256, file_size = excluded.file_size, file_sha256 = excluded.file_sha256,
          file_key = excluded.file_key, icon_key = excluded.icon_key, created_at = excluded.created_at`,
     )
     .bind(
       id, request.applicationId, formFactor, channelId, claims.runId, claims.runAttempt, claims.workflow, claims.runNumber,
       claims.eventName, claims.ref, request.commit.sha, claims.sha, request.commit.message ?? null,
-      request.pullRequestTitle ?? null, normaliseReleaseNotes(request.releaseNotes), request.versionCode, request.versionName ?? null, request.label ?? null,
+      request.pullRequestTitle ?? null, normaliseReleaseNotes(request.releaseNotes), request.openInApp ? fill(request.openInApp, id) : null,
+      request.versionCode, request.versionName ?? null, request.label ?? null,
       request.signerSha256, request.apk.size, request.apk.sha256, fileKey, iconKey, now,
     )
     .run();
@@ -297,8 +306,8 @@ async function reserveBuildId(db: D1Database): Promise<string> {
 }
 
 const BUILD_COLUMNS = `application_id, form_factor, channel_id, run_id, run_attempt, workflow, run_number, event_name, ref, commit_sha,
-  built_sha, commit_message, pull_request_title, release_notes, version_code, version_name, label, signer_sha256, file_size,
-  file_sha256, file_key`;
+  built_sha, commit_message, pull_request_title, release_notes, open_in_app, version_code, version_name, label, signer_sha256,
+  file_size, file_sha256, file_key`;
 
 export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" | "now" | "waitUntil">, buildId: string): Promise<UploadedBuild> {
   const { env, claims } = ctx;
@@ -356,7 +365,8 @@ export async function completeUpload(ctx: Pick<UploadContext, "env" | "claims" |
            workflow = excluded.workflow, run_number = excluded.run_number, event_name = excluded.event_name,
            ref = excluded.ref, commit_sha = excluded.commit_sha, built_sha = excluded.built_sha,
            commit_message = excluded.commit_message, pull_request_title = excluded.pull_request_title,
-           release_notes = excluded.release_notes, version_code = excluded.version_code, version_name = excluded.version_name, label = excluded.label,
+           release_notes = excluded.release_notes, open_in_app = excluded.open_in_app, version_code = excluded.version_code,
+           version_name = excluded.version_name, label = excluded.label,
            signer_sha256 = excluded.signer_sha256, file_size = excluded.file_size, file_sha256 = excluded.file_sha256,
            file_key = excluded.file_key, icon_key = excluded.icon_key, uploaded_at = excluded.uploaded_at,
            deleted_at = NULL`,

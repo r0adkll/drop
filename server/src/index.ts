@@ -19,7 +19,7 @@ import { DROP_ICON_SVG } from "./icon";
 import { sendBuildWebhooks } from "./notifications";
 import { qrPng, qrSvg } from "./qr";
 import { applyRetention } from "./retention-job";
-import { checkForUpdate, parseUpdateCheck } from "./update-check";
+import { checkBuild, checkForUpdate, parseUpdateCheck } from "./update-check";
 import { buildUrl, completeUpload, createUpload, parseCreateUpload } from "./uploads";
 
 type Health = components["schemas"]["Health"];
@@ -108,6 +108,15 @@ export function createApp(deps: Dependencies) {
   app.get("/api/v1/update", async (c) => {
     const installed = parseUpdateCheck(new URL(c.req.url).searchParams);
     const answer = await checkForUpdate(c.env.DB, installed, deps.now());
+    return c.json(answer, 200, { "cache-control": "no-store" });
+  });
+
+  // Open in App (docs/design.md#open-in-app): one chosen Build, whatever the installed Channel.
+  app.get("/api/v1/builds/:buildId/update", async (c) => {
+    const buildId = c.req.param("buildId");
+    const installed = parseUpdateCheck(new URL(c.req.url).searchParams);
+    if (!BUILD_ID.test(buildId)) throw new ApiError(404, "build_not_found", `There is no Build ${buildId}.`);
+    const answer = await checkBuild(c.env.DB, buildId, installed, deps.now());
     return c.json(answer, 200, { "cache-control": "no-store" });
   });
 
@@ -221,7 +230,11 @@ export function createApp(deps: Dependencies) {
   });
 
   app.get("/b/:buildId", async (c) => {
-    const page = renderBuildPage(await loadBuildPage(c.env.DB, c.req.param("buildId")), { baseUrl: config.url });
+    const page = renderBuildPage(await loadBuildPage(c.env.DB, c.req.param("buildId")), {
+      baseUrl: config.url,
+      // Open in App's fallback: the browser found no app to open (docs/design.md#open-in-app).
+      openFailed: c.req.query("open") === "failed",
+    });
     return c.html(page.html, page.status, {
       "cache-control": "public, max-age=60",
       "content-security-policy": await pageContentSecurityPolicy(),
