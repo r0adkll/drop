@@ -216,6 +216,15 @@ records how the platforms around Drop behave. Facts marked *unverified* were not
   all, from the foreground or the background.
 - Installing an update kills the app's process, so the session's result never reaches it. The SDK
   learns the update went in from `lastUpdateTime` on the next launch.
+- Chrome on Android turns a tapped
+  `intent://<rest>#Intent;scheme=<scheme>;package=<package>;S.browser_fallback_url=<encoded URL>;end`
+  into a `VIEW` intent for `<scheme>://<rest>` that only `<package>` may handle; an opaque link
+  (`scheme:rest`) is written `intent:rest#Intent;…`. Chrome adds `CATEGORY_BROWSABLE`, so the
+  activity's filter must declare `BROWSABLE` (and `DEFAULT`). When no activity in the package
+  matches, it loads the fallback URL; without one it opens Google Play at the package, which would
+  offer a store build. It needs a user gesture, so only a tap opens it, never a redirect
+  (Chrome's "Android Intents with Chrome" page; *unverified* on a device, and in Firefox and
+  Samsung Internet, which also document `intent:` URLs).
 
 ## SDK
 

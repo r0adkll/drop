@@ -56,6 +56,11 @@ _Avoid_: Changelog, description
 The web page for a single Build, with its QR code and install button.
 _Avoid_: Download page, landing page
 
+**Open in App**:
+A Build page's button that opens the installed app at the link its upload gave, so the app can offer
+that Build whichever Channel it follows.
+_Avoid_: Deep link, App link, launch URL
+
 **Stamp**:
 The Product, Channel and CI run written into a Build when it is built, by which Drop recognises an
 installed Build.
@@ -97,7 +102,8 @@ A request from an installed Build asking whether a newer Build exists on its Cha
 _Avoid_: Poll, version check
 
 **Update**:
-A newer Build offered to an installed Build by an Update check.
+A Build offered to an installed Build: a newer one by an Update check, or the one a Tester chose
+with Open in App.
 _Avoid_: New version, upgrade
 
 **Update sheet**:

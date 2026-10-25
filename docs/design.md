@@ -142,7 +142,8 @@ deploy the Worker can change these rules.
   from boards 9–12 on the [Update sheet canvas](https://claude.ai/artifact/96tyNGZTQqfgf4r3TfWGZK).
 - On a laptop the details sit beside a QR panel with install steps, a Download APK link and Copy
   link. On a phone the QR code is dropped, Install stays pinned to the bottom of the screen, and help
-  for Android's unknown-apps prompt and "App not installed" sits with the details.
+  for Android's unknown-apps prompt and "App not installed" sits with the details. A Build whose
+  upload gave an Open in App link adds **Open in App** under Install ([Open in App](#open-in-app)).
 - Details: pull request, commit, CI run labelled with its workflow and run number
   ("Android #1876"), upload time, size, and how long it is kept ("while it is the newest on
   `pr/142`", or a date). A collapsed *Technical details* holds the application ID, version code,
@@ -225,6 +226,36 @@ cached.
 - An unknown application ID answers `404 product_not_found`; a Private product answers `403
   sign_in_required` and reveals nothing else, as its Build page does.
 
+## Open in App
+
+([ADR 0018](adr/0018-open-in-app.md)) Agreed from the
+[Open in App canvas](https://claude.ai/artifact/J1fnmi69e9HVnhvvGhDeyG).
+
+- The upload Action's `open-in-app` input is a link template the app recognises, such as
+  `trailhead://drop/{build}`; Drop fills in every `{build}` with the Build's ID and stores the link
+  with the Build. It must contain `{build}`, start with a scheme other than `http`, `javascript`,
+  `intent`, `file`, `content` or `data`, and hold no whitespace or `#`; the server refuses any other
+  with `400 invalid_request`. An `https` App Link is allowed.
+- On a phone, an available mobile Build with a link shows **Open in App** under Install in the
+  pinned bar, older Builds included. Desktop browsers can't open an Android app, Wear Build pages
+  are used from a computer, and expired pages have nothing to open, so none of them shows it; nor
+  do the site pages, pull request comments or messages.
+- The button is an `intent:` URL built from the link: its scheme, the Product's application ID as
+  `package`, and the Build page with `?open=failed` as `S.browser_fallback_url`. A browser that finds
+  no activity for it in that package (the app isn't installed, or this copy has no handler) loads
+  the fallback, where a note says the app didn't open and to tap Install instead.
+- The app declares the intent filter for its own link, reads the Build ID and calls
+  `drop.check(buildId)`. The SDK sends it to `GET /api/v1/builds/{buildId}/update` with the same
+  installed-Build parameters as the Update check. A Build of another Product or Form factor answers
+  `404 build_not_found`, like an unknown ID, and a Private product's `403 sign_in_required`.
+- The answer is, in this order: `installed` (the installed Build's own run), `expired` (deleted;
+  `expired` says when), `reinstall_required` (a different Signer or a lower version code),
+  `update` (newer on the installed Build's own Channel, as an Update check would offer it), or
+  `install` (on another Channel, or older). All but `installed` and `expired` carry an Update.
+- Installing it switches the app to the Build's Channel, since the Channel comes from its Stamp: a
+  `pr/151` Build follows `pr/151`, then is offered the default Channel's newest when the pull
+  request closes.
+
 ## SDK
 
 - Makes no decisions about when to check or how to tell the Tester. The app checks when it wants,
@@ -242,9 +273,10 @@ cached.
 ### API
 
 - The core exposes suspend functions: `check()` (answering up to date, an Update, an ended Channel
-  with a suggested Update, a Signer mismatch, an unknown Build, or an error), `download(update)`,
-  `install()`, and helpers for *Install unknown apps* (`canInstall()`,
-  `installPermissionIntent()`).
+  with a suggested Update, a Signer mismatch, an unknown Build, or an error), `check(buildId)` for
+  [Open in App](#open-in-app) (answering an Update, a Build opened in the app, a reinstall, already
+  installed, expired, or an error), `download(update)`, `install()`, and helpers for *Install
+  unknown apps* (`canInstall()`, `installPermissionIntent()`).
 - One `state: StateFlow` (idle, Update available, downloading with progress, ready to install,
   installing, failed) is shared by the app and the Update sheet, so the app's own hints and the
   sheet always agree.
@@ -279,6 +311,11 @@ Agreed from the mockups on the [Update sheet canvas](https://claude.ai/artifact/
 - When the Channel's pull request has ended, the sheet says so and offers the default Channel's
   newest Build with **Switch to main**, which installs it like any Update; when that Build needs a
   reinstall, the same screen carries the reinstall warning and opens its Build page.
+- A Build opened with [Open in App](#open-in-app) that is newer on the installed Build's Channel,
+  or needs a reinstall, gets the screens above. Any other is offered as **Install this Build**, with
+  a note before **Install** when it is on another Channel: that Updates will then come from its
+  Channel until its pull request closes. The installed Build itself gets "You already have this
+  Build" with **Done**, and an expired one says when it was deleted, with **Open its Build page**.
 
 ## Pull request comments
 
